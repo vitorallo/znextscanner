@@ -14,9 +14,11 @@ class TestCLI:
         self.runner = CliRunner()
 
     def test_version(self) -> None:
+        from znextscan import __version__
+
         result = self.runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
-        assert "0.1.0" in result.output
+        assert __version__ in result.output
 
     def test_help(self) -> None:
         result = self.runner.invoke(cli, ["--help"])
