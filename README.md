@@ -7,6 +7,8 @@
 
 Produces JSON, HTML, PDF, and Excel reports plus a Mythos questionnaire (Excel + JSON/CSV) and ZIP evidence bundles. All scriptable checks are live-validated against z/OS 3.1.
 
+> **Safe for production.** zNextScan is **read-only** (display/query commands only), installs **nothing** on z/OS, can be limited to the **z/OSMF REST API**, and runs as a **least-privilege, read-only user**. See [**docs/safe-use.md**](docs/safe-use.md).
+
 ## Quick Start
 
 ```bash
@@ -174,6 +176,7 @@ pytest --cov=znextscan        # coverage
 
 ## Documentation
 
+- [docs/safe-use.md](docs/safe-use.md) — **read-only / least-privilege / production safety** + how to create the scan user
 - [MYTHOS.md](MYTHOS.md) — frontier-AI threat model + 42-control catalog
 - [docs/mythos-framework.md](docs/mythos-framework.md) — Mythos framework structure & 4 dimensions
 - [docs/mythos-checks.md](docs/mythos-checks.md) — Mythos-native checks + how to interpret
