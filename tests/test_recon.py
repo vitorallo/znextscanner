@@ -121,3 +121,42 @@ class TestGitHubBackendMocked:
         findings = GitHubCodeSearchBackend().search(ctx)
         assert findings and findings[0].source == "github-code-search"
         assert "acme/x" in findings[0].title
+
+    def test_query_scoping(self) -> None:
+        from znextscan.recon.backends import GitHubCodeSearchBackend as G
+
+        # bare handle -> precise user: qualifier; domain -> free-text fallback
+        assert G._query("vitorallo", "EXEC PGM=") == 'user:vitorallo "EXEC PGM="'
+        assert G._query("acme.example", "EXEC CICS") == '"acme.example" "EXEC CICS"'
+
+    def test_rate_limit_long_reset_aborts_fast(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import time as _t
+
+        from znextscan.recon.backends import GitHubCodeSearchBackend
+
+        class Limited:
+            status_code = 403
+            headers = {
+                "x-ratelimit-remaining": "0",
+                "x-ratelimit-reset": str(int(_t.time()) + 3600),
+            }
+
+            def json(self):  # pragma: no cover - not reached
+                return {"items": []}
+
+        class FakeClient:
+            def __init__(self, *a, **k): ...
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def get(self, *a, **k):
+                return Limited()
+
+        monkeypatch.setattr("znextscan.recon.backends.httpx.Client", FakeClient)
+        # a far-future reset must NOT sleep — it returns immediately
+        monkeypatch.setattr("znextscan.recon.backends.time.sleep", lambda s: pytest.fail("slept"))
+        ctx = ReconContext(enabled=True, authorized=True, identifiers=["acme"])
+        assert GitHubCodeSearchBackend().search(ctx) == []

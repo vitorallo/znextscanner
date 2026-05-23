@@ -19,11 +19,20 @@ error, and never a silent external call.
 - Backend: GitHub code-search for mainframe source signatures
   (COBOL `IDENTIFICATION DIVISION`, JCL `EXEC PGM=`, REXX `ADDRESS TSO`,
   `EXEC CICS`, …) scoped to each identifier.
-- Token: `GITHUB_TOKEN` env var or `recon.github_token` (raises rate limits).
-- Rate-limit aware: backs off on HTTP 403; one failing backend never aborts
-  the rest.
+- **Scoped, not global**: a bare identifier (e.g. `acme-corp`) is searched with
+  GitHub's `user:` qualifier (the account's own repos), not as a free-text term;
+  a domain-style identifier (e.g. `acme.example`) falls back to a free-text
+  search. This keeps results precise and low-noise.
+- Token: `GITHUB_TOKEN` env var or `recon.github_token`. **A token is effectively
+  required** — GitHub code search is rate-limited to ~10 requests/minute even when
+  authenticated.
+- **Rate-limit aware**: honours `x-ratelimit-reset` (waits only if the reset is
+  near, capped at 30s — otherwise returns what it has rather than stalling the
+  scan), with a bounded request budget. One failing backend never aborts the rest.
 - Evidence is **redaction-safe**: only source, title, and URL are recorded —
   never response bodies or secrets.
+- Validated live (2026-05-23): authorization gate + scoped GitHub query confirmed
+  end-to-end; a clean account correctly returns **no exposure**.
 
 ## Operator responsibilities
 
