@@ -12,25 +12,25 @@ Produces JSON, HTML, PDF, and Excel reports plus a Mythos questionnaire (Excel +
 ## Quick Start
 
 ```bash
-# Clone and set up
-git clone <repo-url> && cd znextscan
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[pdf]"     # include [pdf] for PDF reports, or just -e "." without
+# 1. Clone and set up
+git clone https://github.com/vitorallo/znextscanner && cd znextscanner
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[pdf]"          # ".[pdf]" adds PDF reports; ".[dev,pdf]" adds the test/lint tools
 
-# Mock scan (no z/OS needed)
+# 2. Try it with no mainframe (mock data) — produces an HTML report
 znextscan scan --mock tests/fixtures --html report.html
 
-# Scan via z/OSMF
-export MRRA_PASSWORD='your-password'
-znextscan scan --host zos.example.com --user MRRASCN --html report.html --pdf report.pdf
+# 3. Scan a real system via z/OSMF (read-only)
+export MRRA_PASSWORD='your-password'        # or omit and be prompted
+znextscan scan --host zos.example.com --port 10443 --user ZNSCAN --html report.html --pdf report.pdf
 
-# Scan via SSH (22 TSO checks, faster)
-znextscan scan --method ssh --host zos.example.com --user MRRASCN --html report.html
-
-# With config file
-znextscan -c mrra-config.sample.yaml scan --html report.html
+# 4. Full coverage (console + TSO + USS) via hybrid; Mythos profile + questionnaire
+znextscan scan --profile mythos --method hybrid --host zos.example.com --user ZNSCAN --excel report.xlsx
 ```
+
+> **First time on a real system?** Read [**docs/safe-use.md**](docs/safe-use.md) — it
+> explains the read-only guarantees and gives the exact RACF to create a
+> least-privilege, read-only scan user.
 
 ### Credentials
 
@@ -45,6 +45,18 @@ Host and user can also come from env vars: `MRRA_HOST`, `MRRA_USER`, `MRRA_PORT`
 > line — bash expands `!` via history substitution even inside single quotes in some
 > contexts, causing silent authentication failures. Use the interactive prompt or
 > set `MRRA_PASSWORD` in a script with `set +H` to disable history expansion.
+
+## Safe to run in production
+
+zNextScan is designed to be pointed at production IBM Z with confidence:
+
+- **Read-only** — only display/query commands (`LISTUSER`, `SETROPTS LIST`, `RLIST`, `D …`); **no** mutating verbs exist in the code (full allow-list in [docs/command-reference.md](docs/command-reference.md)).
+- **No agent, nothing installed** — runs on your workstation/jump host; no STC, exit, or footprint on z/OS.
+- **z/OSMF-API-only option** — `--method zosmf` talks only to the z/OSMF REST API over TLS (no SSH, no USS shell); connections are outbound-only.
+- **Least privilege** — runs as a dedicated `RESTRICTED`, read-only user with no SPECIAL/OPERATIONS and (optionally) no shell.
+- **Auditable & bounded** — every action is a published command, attributed to the scan userid in SMF/RACF logs.
+
+➡️ **Full details + the exact RACF to create the read-only scan user: [docs/safe-use.md](docs/safe-use.md).**
 
 ## Assessment profiles (`--profile`)
 
@@ -152,18 +164,24 @@ output:
 
 ## z/OS Requirements
 
-See [docs/requirements.md](docs/requirements.md) for full details. Minimal setup:
+The scanner runs as a dedicated **read-only** user — no SPECIAL/OPERATIONS. Minimal,
+hardened (`RESTRICTED`, z/OSMF-only, no shell) setup:
 
 ```
-ADDUSER MRRASCN NAME('MRRA SCANNER') DFLTGRP(SYS1) +
+ADDUSER ZNSCAN NAME('ZNEXTSCAN READ-ONLY') DFLTGRP(SYS1) RESTRICTED +
   TSO(ACCTNUM(IZUACCT) PROC(IZUFPROC) SIZE(4096))
-CONNECT MRRASCN GROUP(IZUUSER)
-PERMIT IRR.RADMIN.LISTUSER CLASS(FACILITY) ID(MRRASCN) ACCESS(READ)
-PERMIT IRR.RADMIN.RLIST    CLASS(FACILITY) ID(MRRASCN) ACCESS(READ)
-PERMIT MVS.MCSOPER.* CLASS(OPERCMDS) ID(MRRASCN) ACCESS(READ)
+CONNECT ZNSCAN GROUP(IZUUSER)
+PERMIT IRR.RADMIN.LISTUSER CLASS(FACILITY) ID(ZNSCAN) ACCESS(READ)
+PERMIT IRR.RADMIN.RLIST    CLASS(FACILITY) ID(ZNSCAN) ACCESS(READ)
+PERMIT IRR.RADMIN.SETROPTS CLASS(FACILITY) ID(ZNSCAN) ACCESS(READ)
+PERMIT MVS.DISPLAY.**      CLASS(OPERCMDS) ID(ZNSCAN) ACCESS(READ)
 SETROPTS RACLIST(FACILITY) REFRESH
 SETROPTS RACLIST(OPERCMDS) REFRESH
 ```
+
+See **[docs/safe-use.md](docs/safe-use.md)** for the full privilege model (incl. the
+`ROAUDIT` alternative and the "authorities NOT granted" table) and
+[docs/requirements.md](docs/requirements.md) for system prerequisites.
 
 ## Development
 
@@ -176,17 +194,26 @@ pytest --cov=znextscan        # coverage
 
 ## Documentation
 
+**Start here**
 - [docs/safe-use.md](docs/safe-use.md) — **read-only / least-privilege / production safety** + how to create the scan user
-- [MYTHOS.md](MYTHOS.md) — frontier-AI threat model + 42-control catalog
-- [docs/mythos-framework.md](docs/mythos-framework.md) — Mythos framework structure & 4 dimensions
-- [docs/mythos-checks.md](docs/mythos-checks.md) — Mythos-native checks + how to interpret
+- [docs/requirements.md](docs/requirements.md) — z/OS system & user requirements
+- [docs/config.md](docs/config.md) — configuration reference
+- [docs/command-reference.md](docs/command-reference.md) — every command the scanner runs (read-only allow-list)
+
+**Checks & interpretation**
+- [docs/checks.md](docs/checks.md) — per-check reference & **how to interpret results**
+- [docs/compatibility.md](docs/compatibility.md) — z/OS version compatibility (V1R13–3.1)
+
+**Mythos profile (frontier-AI readiness)**
+- [MYTHOS.md](MYTHOS.md) — threat model + 42-control catalog
+- [docs/mythos-framework.md](docs/mythos-framework.md) — framework structure & 4 dimensions
+- [docs/mythos-checks.md](docs/mythos-checks.md) — native checks + how to interpret
 - [docs/mythos-recon.md](docs/mythos-recon.md) — MYT-R02 external recon rules of engagement
 - [docs/mythos-questionnaire.md](docs/mythos-questionnaire.md) — questionnaire generator
 - [docs/assessment-profiles.md](docs/assessment-profiles.md) — profile/framework abstraction
-- [docs/checks.md](docs/checks.md) — per-check reference & **interpretation guide**
-- [docs/compatibility.md](docs/compatibility.md) — z/OS version compatibility (V1R13–3.1)
-- [docs/requirements.md](docs/requirements.md) — z/OS system and user requirements
-- [docs/config.md](docs/config.md) — configuration reference
+
+**Internals**
 - [docs/architecture.md](docs/architecture.md) — system architecture
 - [docs/connections.md](docs/connections.md) — connection methods (z/OSMF, SSH, hybrid, mock)
+- [docs/connection-comparison.md](docs/connection-comparison.md) — method coverage/speed comparison
 - [docs/parsers.md](docs/parsers.md) — parser documentation
