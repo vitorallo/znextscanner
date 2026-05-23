@@ -2,7 +2,7 @@
 
 ## Overview
 
-MRRA Scanner uses a connection abstraction layer (`BaseConnection`) to support
+zNextScan uses a connection abstraction layer (`BaseConnection`) to support
 multiple methods of interacting with z/OS. All connections expose three command
 methods:
 
@@ -97,7 +97,7 @@ Defined in `znextscan/connections/ssh.py`. Uses Paramiko.
 ### Known Limitation: tsocmd and SEARCH
 The `tsocmd` utility rejects certain RACF SEARCH operands (e.g., `SPECIAL`) as
 invalid keywords. This is not a bug — `SPECIAL` is not a valid SEARCH operand.
-The scanner uses `LISTUSER *` instead. See `docs/search-special-incident.md`.
+The scanner uses `LISTUSER *` instead and parses attributes from the output.
 
 ## MockConnection
 

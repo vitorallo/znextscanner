@@ -1,4 +1,4 @@
-# MRRA Scanner — Command Quick Reference
+# zNextScan — Command Quick Reference
 
 All commands executed by the scanner. Every command is **read-only** — none modify
 the target system. Commands marked (TSO) run via z/OSMF TSO API or SSH tsocmd.
@@ -42,6 +42,27 @@ Commands marked (Console) run via z/OSMF Console API.
 | `netstat -a` | USS | EXT-011 | USS network listeners (open ports inventory) |
 | `ps -ef` | USS | EXT-012, EXT-022 | Running processes (flags FTPD, SSHD, httpd, Java, DB2, MQ, DFHSM, CSM, GDPS) |
 
+## Mythos profile — additional commands
+
+The `mythos` profile reuses the commands above and adds these (all read-only):
+
+| Command | Type | Check | What it returns |
+|---------|------|-------|----------------|
+| `LISTA STATUS` | TSO | MYT-R01 | Allocated DDs — SYSEXEC/SYSPROC concatenations (REXX/CLIST surface) |
+| `$D PROCLIB` | Console (JES2) | MYT-R01 | JES2 PROCLIB concatenations (JCL proc datasets) |
+| `D IPLINFO` | Console | MYT-V01 | z/OS release + last-IPL date (maintenance-currency proxy) |
+| `RLIST MFADEF * ALL` | TSO | MYT-C10 | MFADEF factor profiles (MFA framework presence) |
+| `D A,L` | Console | MYT-R05, MYT-X11 | Active address spaces — API/modernization servers + backup STCs |
+| `D TCPIP,,N,CONN` | Console | MYT-R05 | Listening ports correlated to address spaces (API glass-box) |
+| `D SMS,SG(ALL)` | Console | MYT-X01, MYT-X11 | SMS storage groups — COPY type = FlashCopy/Safeguarded Copy |
+| `D SMF,O` | Console | MYT-X08 | SMF recording method (LOGSTREAM = SIEM-forwardable) |
+| java sweep of `/usr/lpp/java/*` | USS | MYT-V02 | Every installed JRE version (per-major CVE match) |
+| `ssh -V`, `openssl version`, `python3`, `zoaversion` | USS | MYT-V07 | OSS/USS component versions vs. minimums |
+| `find` perms (`/etc /var /bin /usr/sbin`) | USS | MYT-C12 | World-writable + setuid/setgid files (privesc hardening) |
+
+MYT-R02 (source-exposure recon) makes **external** queries only when explicitly
+authorized; it issues no z/OS command. See [`mythos-recon.md`](mythos-recon.md).
+
 ## Command Availability by Connection Method
 
 | Command | z/OSMF | SSH (tsocmd) | Notes |
@@ -81,7 +102,7 @@ Commands marked (Console) run via z/OSMF Console API.
 
 | Command | Why Not Used |
 |---------|-------------|
-| `SEARCH CLASS(USER) SPECIAL` | **Invalid** — SPECIAL is not a SEARCH operand. See `docs/search-special-incident.md` |
+| `SEARCH CLASS(USER) SPECIAL` | **Invalid** — SPECIAL is not a `SEARCH` operand; use `LISTUSER *` and parse attributes |
 | `SEARCH CLASS(USER) OPERATIONS` | **Invalid** — same reason as above |
 | `SEARCH CLASS(USER) AUDITOR` | **Invalid** — same reason as above |
 | `D ICSF,STATUS` | **Invalid** — not a valid DISPLAY ICSF keyword on any z/OS version |

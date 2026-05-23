@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-MRRA Scanner supports z/OS V1R13 through z/OS 3.1. Parser logic is data-driven (reacts to what it finds) with no version-specific branching.
+zNextScan supports z/OS V1R13 through z/OS 3.1. Parser logic is data-driven (reacts to what it finds) with no version-specific branching.
 
 ## Per-Check Compatibility Matrix
 
@@ -68,3 +68,28 @@ When a command is not available (e.g., Console API on V1R13 without SSH):
 - Check returns `CheckStatus.SKIPPED` with descriptive finding
 - Scan continues with remaining checks
 - Results clearly indicate which checks were skipped and why
+
+## Mythos profile compatibility
+
+The `mythos` profile reuses the MRRA checks above (same compatibility) plus
+native checks. Their commands are valid across z/OS V1R13–3.1; availability
+depends on connection method, and everything degrades to **Skipped** (never
+Error) when unavailable:
+
+| Mythos check | Command(s) | Needs | Degrades when |
+|--------------|-----------|-------|---------------|
+| MYT-R01 op-code surface | `LISTA STATUS` + `$D PROCLIB` | TSO (+console for PROCLIB) | console absent → SYSEXEC/SYSPROC only |
+| MYT-V01 maintenance currency | `D IPLINFO` | console | z/OSMF-only V1R13 → Skipped |
+| MYT-X01/X11 backup | `D SMS,SG(ALL)`, `D A,L` | console | console absent → Skipped |
+| MYT-R05 API glass-box | `D A,L` + `D TCPIP,,N,CONN` | console | TCPIP enrich optional; D A,L gates |
+| MYT-X08 SMF→SIEM | `D SMF,O` | console | recording method absent → Skipped |
+| MYT-X10 audit logging | `SETROPTS LIST` + EXT-007/008 | TSO | always available |
+| MYT-C10 MFA | `SETROPTS LIST` + `RLIST MFADEF` | TSO | MFADEF undefined → no factors |
+| MYT-C12 USS hardening | `find` (perms) | SSH/hybrid (USS) | z/OSMF-only → Skipped |
+| MYT-V02 JRE CVEs | java sweep of `/usr/lpp/java/*` | SSH/hybrid (USS) | no java / z/OSMF-only → Skipped |
+| MYT-V07 USS/OSS currency | `ssh -V`/`openssl`/`python3`/`zoaversion` | SSH/hybrid (USS) | components absent → omitted |
+| MYT-R02 source-exposure recon | external (GitHub/paste) | network + authorization | not authorized → Skipped |
+
+USS-based Mythos checks (V02, V07, C12) require SSH or **hybrid**; under a
+z/OSMF-only connection they Skip. The offline CVE map (`znextscan/data/cve_map.json`)
+is version-independent and shipped with the package.

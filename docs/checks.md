@@ -98,7 +98,7 @@ backup, MFA framework, API glass-box, USS file-perm hardening, SMF→SIEM
 readiness). Non-scriptable controls become the **questionnaire** deliverable.
 
 See **[`mythos-checks.md`](mythos-checks.md)** for the per-check guide and
-interpretation, and **[`MYTHOS.md`](../MYTHOS.md)** for the full 39-control
+interpretation, and **[`MYTHOS.md`](../MYTHOS.md)** for the full 42-control
 catalog and threat model.
 
 ## Error handling

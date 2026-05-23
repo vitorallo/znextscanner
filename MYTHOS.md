@@ -79,7 +79,7 @@ The framework organizes all controls into four dimensions mapped to NIST CSF:
 4. **Response & Recovery** (Respond/Recover) — immutable/air-gapped backup, Cyber Vault,
    recovery drills, AI-intrusion IR, SIEM forwarding. *(MRRA had none of these.)*
 
-## 6. Control Catalog (39)
+## 6. Control Catalog (42)
 
 ID scheme `MYT-<D><nn>`: `R` Readiness, `C` Controls, `V` Vuln-patching, `X`
 response/recovery. Validation: Scanner | Interview | Document | Hybrid. "Reuse" = existing

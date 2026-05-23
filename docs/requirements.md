@@ -1,7 +1,7 @@
-# MRRA Scanner - System and User Requirements
+# zNextScan - System and User Requirements
 
 This document describes everything your z/OS system administrator needs to prepare
-before running the MRRA Scanner. The scanner is **strictly read-only** — it executes
+before running the zNextScan. The scanner is **strictly read-only** — it executes
 only display and query commands. It never modifies users, profiles, datasets, or
 system settings.
 

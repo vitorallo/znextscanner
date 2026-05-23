@@ -2,7 +2,7 @@
 
 ## Overview
 
-MRRA Scanner uses YAML configuration files validated by Pydantic models. Generate a sample config with:
+zNextScan uses YAML configuration files validated by Pydantic models. Generate a sample config with:
 
 ```bash
 znextscan generate-config -o mrra-config.yaml
@@ -27,7 +27,7 @@ checks. SSH skips console checks, z/OSMF skips USS checks. See
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `method` | string | `zosmf` | Connection method: `zosmf`, `ssh`, or `mock` |
+| `method` | string | `zosmf` | Connection method: `zosmf`, `ssh`, `hybrid`, or `mock` |
 | `host` | string | `localhost` | Target z/OS hostname |
 | `port` | int | `443` | Connection port (443 for z/OSMF, 22 for SSH) |
 | `username` | string | `IBMUSER` | z/OS userid |
@@ -42,6 +42,7 @@ checks. SSH skips console checks, z/OSMF skips USS checks. See
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
+| `profile` | string | `mrra` | Assessment profile: `mrra` (32 checks) or `mythos` (frontier-AI catalog) |
 | `checks` | list | `[]` | Specific controls to run (empty = all) |
 | `skip_checks` | list | `[]` | Controls to skip |
 | `max_retries` | int | `3` | Retry count for failed commands |
@@ -54,6 +55,20 @@ checks. SSH skips console checks, z/OSMF skips USS checks. See
 | `output_file` | string | `mrra-scan-results.json` | Results file path |
 | `evidence_dir` | string | `evidence` | Raw evidence output directory |
 | `redact_userids` | bool | `false` | Anonymize userids in output |
+
+### recon (Mythos MYT-R02 — external exposure recon)
+
+Off by default; **all three gates** are required before any external query.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable external recon (`--recon`) |
+| `authorized` | bool | `false` | Affirm authorization (`--authorized-recon`) |
+| `identifiers` | list | `[]` | Org/domain identifiers to search (`--recon-id`) |
+| `github_token` | string | — | Token (or `GITHUB_TOKEN` env) to raise rate limits |
+| `max_results` | int | `20` | Cap on findings |
+
+See [`mythos-recon.md`](mythos-recon.md) for the rules of engagement.
 
 ## Password Handling
 
@@ -76,7 +91,7 @@ scanner receives it. This causes `401 Unauthorized` errors.
 - Use the interactive prompt (omit `--password` — scanner will ask)
 - Set the env var in a script: `MRRA_PASSWORD='Pass!' znextscan scan ...`
 - Disable history expansion: `set +H` before running the command
-- Use a config file: `password: IloveIbm1!` in YAML (no shell expansion)
+- Use a config file: `password: '...'` in YAML (no shell expansion)
 
 ## Example Configs
 
@@ -115,7 +130,27 @@ connection:
   timeout: 60
 ```
 
-Note: SSH mode skips 5 console-based checks (ID-003, MON-001, ENC-002, ENC-005, SCI-001).
+Note: SSH mode skips console-based checks (e.g. ID-003, MON-001, ENC-002, ENC-005, SCI-001); use `hybrid` for full coverage.
+
+### Mythos profile (frontier-AI readiness)
+
+```yaml
+connection:
+  method: hybrid          # hybrid recommended — console + TSO + USS
+  host: zos.example.com
+  port: 10443
+  username: MRRASCN
+  timeout: 120
+
+scan:
+  profile: mythos         # 42-control catalog; auto-emits the questionnaire
+
+# recon (MYT-R02) stays off unless all three gates are set:
+# recon:
+#   enabled: true
+#   authorized: true
+#   identifiers: [acme-corp, acme.example]
+```
 
 ### Mock Mode (development/testing)
 

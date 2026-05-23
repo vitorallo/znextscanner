@@ -1,123 +1,84 @@
 # Architecture
 
-## Overview
-
-MRRA Scanner follows a layered architecture with clear separation between connection handling, command execution, output parsing, and security evaluation.
-
-```
-┌──────────────────────────────────────────────────┐
-│                     CLI Layer                     │
-│              (Click commands + config)            │
-├──────────────────────────────────────────────────┤
-│                  Scanner Orchestrator             │
-│       (runs checks, collects ScanResult)          │
-├──────────────────────────────────────────────────┤
-│              Reporter + Evidence                  │
-│      JSON report + raw output ZIP bundle          │
-├──────────────────────────────────────────────────┤
-│                   Check Layer                     │
-│         BaseCheck → execute → parse → evaluate    │
-│         Returns CheckResult (Pass/Fail/etc.)      │
-├──────────────────────────────────────────────────┤
-│                  Parser Layer                     │
-│        RACF output → structured dicts/lists       │
-├──────────────────────────────────────────────────┤
-│                 Connection Layer                  │
-│     BaseConnection (ABC)                          │
-│     ├── MockConnection   (fixture files)          │
-│     ├── ZOSMFConnection  (REST API) [planned]     │
-│     └── SSHConnection    (Paramiko)  [planned]    │
-└──────────────────────────────────────────────────┘
-```
-
-## Data Flow
+zNextScan is a layered, read-only scanner: a CLI drives a profile-aware
+orchestrator that runs checks over a pluggable connection, parses raw z/OS
+output into structured data, evaluates it against security criteria, and emits
+reports + evidence.
 
 ```
-CLI (--mock dir) → MockConnection
-                      ↓
-              Scanner.run_scan()
-                      ↓
-              for each Check:
-                execute(conn) → raw text
-                parse(text)   → dict
-                evaluate(dict) → CheckResult
-                      ↓
-              ScanResult (all CheckResults)
-                      ↓
-              ├── JSON Reporter → report.json
-              └── Evidence Bundle → bundle.zip
-                      ↓
-              CLI output (summary)
+┌────────────────────────────────────────────────────────────┐
+│  CLI (Click)  scan · list-controls · test-connection ·       │
+│               generate-questionnaire · generate-config       │
+├────────────────────────────────────────────────────────────┤
+│  Scanner orchestrator — profile-aware registry, run_scan(),  │
+│  ScanResult                                                  │
+├────────────────────────────────────────────────────────────┤
+│  Reporters + evidence: JSON · HTML · PDF · Excel ·           │
+│  questionnaire (Excel/JSON/CSV) · ZIP bundle (redaction)     │
+├────────────────────────────────────────────────────────────┤
+│  Check layer: BaseCheck → execute → parse → evaluate →       │
+│  CheckResult (Pass/Partial/Fail/Skipped/Error)               │
+├────────────────────────────────────────────────────────────┤
+│  Parser layer: RACF / z/OS command output → structured data  │
+├────────────────────────────────────────────────────────────┤
+│  Connection layer: BaseConnection (ABC)                      │
+│  ├── ZOSMFConnection  (REST: console + TSO)                  │
+│  ├── SSHConnection    (Paramiko: tsocmd + USS)               │
+│  ├── HybridConnection (z/OSMF console + SSH TSO/USS)         │
+│  └── MockConnection   (fixture files)                        │
+├────────────────────────────────────────────────────────────┤
+│  recon/ — authorization-gated external exposure recon (R02)  │
+└────────────────────────────────────────────────────────────┘
 ```
 
-## Key Design Decisions
+## Profiles
 
-### Mock-First Development
-All checks are built and tested against fixture files (`tests/fixtures/`) before validation on real z/OS. The `MockConnection` reads command outputs from text files, enabling development without mainframe access.
+A **profile** selects which checks run and which catalog drives reporting
+(`--profile`). `mrra` (default) = the legacy 32-check ransomware-readiness set;
+`mythos` = the frontier-AI catalog (`znextscan/frameworks/mythos.py`), which
+re-binds existing checks (some controls bind several) plus Mythos-native checks,
+and routes non-scriptable controls to the questionnaire. `scanner.get_registry()`
+resolves the registry per profile; `mrra` behavior is unchanged by Mythos.
 
-### Check Lifecycle
-Every check follows a three-phase pattern:
+## Check lifecycle
 
-1. **execute()** — runs one or more commands via a connection
-2. **parse()** — extracts structured data from raw text output
-3. **evaluate()** — compares data against security criteria, returns CheckResult
+1. **execute(connection)** — run one or more commands, return raw text
+2. **parse(text)** — extract structured data (data-driven, regex-based)
+3. **evaluate(data)** — apply criteria, return a `CheckResult`
 
-The `BaseCheck.run()` method orchestrates this and handles exceptions:
-- `CommandNotSupportedError` → `CheckStatus.SKIPPED` (version compatibility)
-- Other exceptions → `CheckStatus.ERROR`
+`BaseCheck.run()` orchestrates and maps failures:
+`CommandNotSupportedError`/`RACFPermissionError` → **Skipped**,
+`TimeoutError` → **Error**, anything else → **Error**. Checks are written so
+absent features/fields degrade to Skipped/Partial, not Error.
 
-### Version Compatibility
-Parsers are data-driven (regex-based, return `None` for missing fields). No version branching. Works on z/OS V1R13 through 3.1. See `docs/compatibility.md`.
+## Key design decisions
 
-### Configuration
-Pydantic models validate all configuration. See `znextscan/config.py`.
+- **Read-only** — only display/list commands; never modifies the target.
+- **Mock-first** — built/tested against `tests/fixtures/`, then validated on
+  real z/OS (`tests/fixtures/real_zos/`).
+- **Data-driven parsers, no version branching** — works z/OS V1R13–3.1 over
+  z/OSMF or SSH (see [`compatibility.md`](compatibility.md)).
+- **Graceful degradation** — unavailable commands/connection methods/features
+  Skip rather than error.
+- **Pydantic** config; **structlog** logging.
 
-### Logging
-structlog provides structured JSON logging for production and console output for development.
-
-## Directory Structure
+## Directory structure
 
 ```
 znextscan/
-├── __init__.py           # Package version
-├── cli.py                # Click CLI (scan, list-controls, test-connection, generate-config)
-├── config.py             # Pydantic config models + YAML loading
-├── logging.py            # structlog setup
-├── scanner.py            # Orchestrator (run_scan, ScanResult, CHECK_REGISTRY)
-├── connections/
-│   ├── base.py           # BaseConnection ABC + CommandNotSupportedError
-│   └── mock.py           # MockConnection (reads fixture files)
-├── checks/
-│   ├── base_check.py     # BaseCheck ABC + CheckResult + CheckStatus
-│   ├── id_checks.py      # ID-002 (Privileged Users), ID-003 (APF Libraries)
-│   ├── iam_checks.py     # IAM-002 (Password), IAM-003 (Defaults), IAM-004 (SPECIAL), IAM-005 (STC)
-│   ├── mon_checks.py     # MON-001 (SMF), MON-003 (RACF Audit)
-│   ├── enc_checks.py     # ENC-002 (ICSF Keys), ENC-005 (Crypto Hardware)
-│   └── sci_checks.py     # SCI-001 (APF Integrity), SCI-004 (Program Control)
-├── parsers/
-│   └── racf_parser.py    # 12 parsers for RACF/z/OS command output
-├── reporters/
-│   └── json_reporter.py  # JSON report generation
-└── utils/
-    └── evidence.py       # Evidence bundle (ZIP) creation + userid redaction
+├── cli.py                # Click CLI
+├── config.py             # Pydantic config (connection, scan profile, recon, output)
+├── scanner.py            # Orchestrator: PROFILES, get_registry, run_scan, ScanResult
+├── logging.py
+├── connections/          # base, zosmf, ssh, hybrid, mock, factory
+├── checks/               # base_check + id/iam/mon/enc/sci/ext + mythos_checks
+├── frameworks/           # mythos.py — 42-control catalog (ControlSpec)
+├── parsers/              # racf_parser.py — 23 parsers
+├── recon/                # engine + backends (authorization-gated MYT-R02)
+├── reporters/            # json, html, pdf, excel, questionnaire_{json,excel}
+├── data/                 # cve_map.json (offline CVE map for MYT-V02)
+└── utils/                # evidence (ZIP + redaction), errors, retry
 
-tests/
-├── fixtures/             # Mock z/OS command output files (z/OS 3.1 format)
-│   ├── real_zos/         # Captured from live z/OS 3.1 Hercules devlab
-│   └── v1r13/            # Simulated z/OS V1R13 output
-├── test_checks.py        # Check class tests (all 12 checks)
-├── test_checks_base.py   # BaseCheck, CheckResult, CommandNotSupportedError tests
-├── test_cli.py           # CLI command tests
-├── test_config.py        # Config loading/validation tests
-├── test_connections.py   # MockConnection tests
-├── test_parsers.py       # Parser tests (mock + real z/OS + V1R13)
-└── test_scanner.py       # Scanner, reporter, evidence, end-to-end tests
-
-docs/
-├── architecture.md       # This file
-├── checks.md             # Per-check documentation
-├── compatibility.md      # z/OS version compatibility matrix
-├── config.md             # Configuration reference
-├── connections.md        # Connection layer documentation
-└── parsers.md            # Parser documentation
+tests/                    # 15 modules; fixtures/ + fixtures/real_zos + fixtures/v1r13
+docs/                     # these guides
 ```

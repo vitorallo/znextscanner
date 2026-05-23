@@ -4,7 +4,7 @@
 equivalent for. They use `MYT-*` control IDs, run only under `--profile mythos`,
 and target the frontier-AI exposure surface (readable code, leaked source,
 patch currency, recovery, API glass-box). See [`MYTHOS.md`](../MYTHOS.md) for the
-threat model and the full 39-control catalog; this doc covers the 10 native
+threat model and the full 42-control catalog; this doc covers the 10 native
 scriptable checks and **how to read each result**.
 
 ## Checks & commands
