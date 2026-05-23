@@ -1,0 +1,4 @@
+ CSFM680I 09.30.00 ICSF CARDS 671
+  CARD  TYPE    STATUS     SPEED       MODE     DOMAIN
+  00    CEX8S   ONLINE     FULL        ACCEL    00
+  01    CEX8S   ONLINE     FULL        CCA      01

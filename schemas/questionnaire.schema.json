@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "zNextScan Mythos Questionnaire",
+  "type": "object",
+  "required": ["assessment", "generated_at", "sections"],
+  "properties": {
+    "assessment": {"type": "string"},
+    "generated_at": {"type": "string"},
+    "scan_id": {"type": ["string", "null"]},
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["dimension", "controls"],
+        "properties": {
+          "dimension": {"type": "string", "enum": ["R", "C", "V", "X"]},
+          "controls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "control_id", "name", "priority", "nist_function",
+                "validation_method", "question", "response_type", "answer"
+              ],
+              "properties": {
+                "control_id": {"type": "string"},
+                "name": {"type": "string"},
+                "priority": {"type": "string", "enum": ["P0", "P1", "P2"]},
+                "nist_function": {"type": "string"},
+                "validation_method": {
+                  "type": "string",
+                  "enum": ["Interview", "Document", "Hybrid", "Scanner"]
+                },
+                "question": {"type": "string"},
+                "evidence_prompt": {"type": "string"},
+                "response_type": {
+                  "type": "string",
+                  "enum": ["yes_no", "scale_1_5", "free_text", "evidence_upload"]
+                },
+                "prefilled_status": {"type": ["string", "null"]},
+                "answer": {"type": ["string", "number", "boolean", "null"]},
+                "notes": {"type": "string"}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

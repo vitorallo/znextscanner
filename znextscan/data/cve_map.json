@@ -1,0 +1,16 @@
+{
+  "_comment": "Offline CVE map for MYT-V02. Static, deterministic, refreshable. component -> list of {max_vulnerable_version, cves}.",
+  "_updated": "2026-05-18",
+  "_note": "java entries use the IBM SR build / Semeru quad (e.g. 8.0.8.15, 11.0.22.0). Matched within the same major version only. Illustrative — curate against the live CVE feed.",
+  "java": [
+    {"max_vulnerable_version": "8.0.8.10", "cves": ["CVE-2024-21011", "CVE-2024-21068"]},
+    {"max_vulnerable_version": "11.0.22.0", "cves": ["CVE-2024-20952"]},
+    {"max_vulnerable_version": "17.0.9.0", "cves": ["CVE-2024-20918", "CVE-2024-20932"]}
+  ],
+  "openssh": [
+    {"max_vulnerable_version": "9.7", "cves": ["CVE-2024-6387"]}
+  ],
+  "python": [
+    {"max_vulnerable_version": "3.10.13", "cves": ["CVE-2023-40217"]}
+  ]
+}

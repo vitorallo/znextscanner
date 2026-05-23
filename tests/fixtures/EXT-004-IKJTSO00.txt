@@ -1,0 +1,17 @@
+AUTHCMD NAMES(               +
+   RECEIVE                   +
+   TRANSMIT XMIT             +
+   CONSOLE                   +
+   NETSTAT                   +
+   PING                      +
+   AU       ADDUSER          +
+   ALU      ALTUSER          +
+)
+AUTHPGM NAMES(               +
+   IKJEFT01                  +
+   IKJEFT1B                  +
+)
+AUTHTSF NAMES(               +
+   CLIST                     +
+)
+LOGON RECONNECT(TIME(15))

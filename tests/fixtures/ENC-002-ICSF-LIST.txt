@@ -1,0 +1,4 @@
+ CSFM668I 09.30.00 ICSF LIST 355
+  Systems supporting SETICSF and DISPLAY ICSF commands:
+    SYSNAME   RELEASE  DOM  CHG_DATE
+    VS01      HCR77E0  N/A  01/29/24

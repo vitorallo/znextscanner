@@ -1,0 +1,4 @@
+*.err;kern.debug;auth.notice           /dev/console
+*.info                                  /var/log/syslog
+auth.*                                  @siem.example.com
+*.emerg                                 *

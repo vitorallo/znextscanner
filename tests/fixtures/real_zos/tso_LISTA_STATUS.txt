@@ -1,0 +1,31 @@
+--DDNAME---DISP--
+IBMUSER.IBMUSER.TSU00116.D0000101.?
+  CEEOPTS  DELETE                                                       
+ISP.SISPEXEC
+  SYSEXEC  KEEP                                                         
+SYS1.SBPXEXEC
+           KEEP                                                         
+ISF.SISFEXEC
+           KEEP                                                         
+ISP.SISPCLIB
+  SYSPROC  KEEP                                                         
+SYS1.SBPXEXEC
+           KEEP                                                         
+SYS1.SIEALNKE
+  ISPLLIB  KEEP                                                         
+ISP.SISPPENU
+  ISPPLIB  KEEP                                                         
+ISP.SISPTENU
+  ISPTLIB  KEEP                                                         
+ISP.SISPSENU
+  ISPSLIB  KEEP                                                         
+ISP.SISPMENU
+  ISPMLIB  KEEP                                                         
+/usr/lpp/zosmf/defaults/izurf.tsoservlet.mapping.json
+  IZUSRVMP KEEP,KEEP                                                    
+IBMUSER.IBMUSER.TSU00116.D0000102.?
+  SYSOUT   DELETE                                                       
+IBMUSER.IBMUSER.TSU00116.D0000103.?
+  CEEDUMP  DELETE                                                       
+IBMUSER.IBMUSER.TSU00116.D0000104.?
+  SYSUDUMP DELETE                                                       

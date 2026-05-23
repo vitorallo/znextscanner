@@ -1,0 +1,24 @@
+=== JRE: /usr/lpp/java/java11/J11.0_64/bin/java ===
+java version "11.0.22" 2024-01-16
+IBM Semeru Runtime Certified Edition for z/OS 11.0.22.0 (build 11.0.22+7)
+IBM J9 VM 11.0.22.0 (build z/OS-Release-11.0.22.0-b01, JRE 11 z/OS s390x-64-Bit Compressed References 20240209_315 (JIT enabled, AOT enabled)
+OpenJ9   - c01a096209b
+OMR      - 33cf48f8d6f
+IBM      - 7394519
+JCL      - e114bbd6ab4 based on jdk-11.0.22+7)
+=== JRE: /usr/lpp/java/java17/J17.0_64/bin/java ===
+java version "17.0.9" 2023-10-17
+IBM Semeru Runtime Certified Edition for z/OS 17.0.9.0 (build 17.0.9+9)
+IBM J9 VM 17.0.9.0 (build z/OS-Release-17.0.9.0-b01, JRE 17 z/OS s390x-64-Bit Compressed References 20231113_49 (JIT enabled, AOT enabled)
+OpenJ9   - 4e0d44ea9b1
+OMR      - 9fc2a7f28b9
+IBM      - 970f576
+JCL      - 30d13b11a3f based on jdk-17.0.9+9)
+=== JRE: /usr/lpp/java/java8/J8.0_64/bin/java ===
+java version "1.8.0_391"
+Java(TM) SE Runtime Environment (build 8.0.8.15 - pmz6480sr8fp15-20231030_01(SR8 FP15))
+IBM J9 VM (build 2.9, JRE 1.8.0 z/OS s390x-64-Bit Compressed References 20230908_57744 (JIT enabled, AOT enabled)
+OpenJ9   - ec90c19
+OMR      - 8b64d40
+IBM      - 696e9df)
+JCL - 20231012_01 based on Oracle jdk8u391-b13

@@ -1,0 +1,3 @@
+java version "1.8.0_311"
+Java(TM) SE Runtime Environment (build 8.0.7.20-b20220106_01(SR7 FP20))
+IBM J9 VM (build 2.9, JRE 1.8.0 z/OS s390x-64-Bit)

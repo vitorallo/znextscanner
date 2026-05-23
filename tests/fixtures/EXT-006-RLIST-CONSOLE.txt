@@ -1,0 +1,13 @@
+CLASS      NAME
+-----      ----
+CONSOLE    MCSOPER.*  (G)
+
+LEVEL  OWNER      UNIVERSAL ACCESS  YOUR ACCESS  WARNING
+-----  --------   ----------------  -----------  -------
+ 00    IBMUSER    NONE              READ         NO
+
+CONSOLE    INTDSP.*  (G)
+
+LEVEL  OWNER      UNIVERSAL ACCESS  YOUR ACCESS  WARNING
+-----  --------   ----------------  -----------  -------
+ 00    IBMUSER    NONE              READ         NO

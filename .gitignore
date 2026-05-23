@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+# scan outputs / evidence
+evidence/
+*-scan-results*.json
+*-questionnaire.json
+*-questionnaire.csv
+*-questionnaire.xlsx
+.DS_Store

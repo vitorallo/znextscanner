@@ -1,0 +1,28 @@
+RLIST STARTED * ALL
+
+CLASS      NAME                    UNIVERSAL ACCESS   WARNING
+------     ----                    ----------------   -------
+STARTED    OMVS.*                  NONE               NO
+  STDATA INFORMATION
+  ------------------
+    USER=OMVSKERN  GROUP=OMVSGRP  TRUSTED=YES  PRIVILEGED=NO  TRACE=NO
+
+STARTED    JES2.*                  NONE               NO
+  STDATA INFORMATION
+  ------------------
+    USER=JES2MSTR  GROUP=SYS1  TRUSTED=YES  PRIVILEGED=NO  TRACE=NO
+
+STARTED    TCPIP.*                 NONE               NO
+  STDATA INFORMATION
+  ------------------
+    USER=TCPIP     GROUP=SYS1  TRUSTED=NO   PRIVILEGED=YES  TRACE=NO
+
+STARTED    SSHD.*                  NONE               NO
+  STDATA INFORMATION
+  ------------------
+    USER=SSHD      GROUP=SYS1  TRUSTED=NO   PRIVILEGED=NO  TRACE=NO
+
+STARTED    *                       NONE               NO
+  STDATA INFORMATION
+  ------------------
+    USER==MEMBER   GROUP=SYS1  TRUSTED=NO   PRIVILEGED=NO  TRACE=NO

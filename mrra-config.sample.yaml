@@ -1,0 +1,27 @@
+# MRRA Scanner Configuration
+#
+# Connection settings can also be set via CLI flags or env vars:
+#   CLI:  --host, --port, --user, --password, --method
+#   ENV:  MRRA_HOST, MRRA_PORT, MRRA_USER, MRRA_PASSWORD
+#
+# Priority: CLI flags > env vars > config file
+
+connection:
+  method: zosmf              # zosmf (default), ssh, or mock
+  host: zos.example.com      # z/OS hostname or IP
+  port: 10443                # 443 for z/OSMF, 22 for SSH
+  username: MRRASCN          # dedicated scan user (see docs/requirements.md)
+  # password: (set via MRRA_PASSWORD env var or prompted interactively)
+  verify_ssl: false           # set true if z/OSMF has a valid certificate
+  timeout: 60                 # command timeout in seconds (increase for slow systems)
+
+scan:
+  checks: []                  # empty = all 27 checks; or list specific: [ID-002, IAM-002]
+  skip_checks: []             # controls to skip: [ENC-002, ENC-005]
+  max_retries: 3
+  continue_on_error: true
+
+output:
+  output_file: mrra-scan-results.json
+  evidence_dir: evidence
+  redact_userids: false       # anonymize user IDs in output

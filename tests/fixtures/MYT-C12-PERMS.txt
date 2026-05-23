@@ -1,0 +1,10 @@
+@@WW@@
+/etc/ipnodes
+@@COMBO@@
+/var/tmp/rogue_suid
+@@SETUID@@
+/bin/IBM/FSUMSAT
+/bin/at
+/bin/batch
+/bin/crontab
+/usr/sbin/tcpip

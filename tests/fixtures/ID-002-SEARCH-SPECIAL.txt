@@ -1,0 +1,8 @@
+irrcerta
+irrmulti
+irrsitec
+IBMUSER
+SYS1
+ADMIN01
+SECADMIN
+EMERGENCY

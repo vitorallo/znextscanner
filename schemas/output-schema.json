@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MRRA Scanner Report",
+  "description": "Output schema for MRRA Scanner security assessment results",
+  "type": "object",
+  "required": ["scan_metadata", "controls", "summary"],
+  "additionalProperties": false,
+  "properties": {
+    "scan_metadata": {
+      "type": "object",
+      "required": ["scan_id", "start_time", "connection_method", "scanner_version"],
+      "properties": {
+        "scan_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique scan identifier"
+        },
+        "start_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Scan start timestamp (ISO 8601)"
+        },
+        "end_time": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "Scan end timestamp (ISO 8601)"
+        },
+        "duration_seconds": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "description": "Total scan duration in seconds"
+        },
+        "connection_method": {
+          "type": "string",
+          "enum": ["zosmf", "ssh", "mock"],
+          "description": "Connection method used for the scan"
+        },
+        "scanner_version": {
+          "type": "string",
+          "description": "MRRA Scanner version"
+        }
+      }
+    },
+    "controls": {
+      "type": "array",
+      "description": "Array of check results, one per control",
+      "items": {
+        "type": "object",
+        "required": ["control_id", "control_name", "status", "findings", "data"],
+        "properties": {
+          "control_id": {
+            "type": "string",
+            "pattern": "^(ID|IAM|MON|ENC|SCI|EXT)-\\d{3}$",
+            "description": "MRRA control identifier"
+          },
+          "control_name": {
+            "type": "string",
+            "description": "Human-readable control name"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["Pass", "Partial", "Fail", "Error", "Skipped"],
+            "description": "Check result status"
+          },
+          "findings": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "List of finding descriptions"
+          },
+          "data": {
+            "type": "object",
+            "description": "Parsed check data (structure varies per control)"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message (present only when status is Error)"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["total_checks", "passed", "partial", "failed", "errors", "skipped", "score_pct"],
+      "properties": {
+        "total_checks": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of checks executed"
+        },
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "partial": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "errors": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "score_pct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Pass percentage (passed / total * 100)"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+     UID        PID       PPID  C    STIME TTY       TIME CMD
+ BPXROOT          1          0  - 19:24:41 ?         2:34 BPXPINPR
+ BPXROOT          2          1  - 19:24:41 ?         0:00 EZBREINI
+ BPXROOT          3          1  - 19:24:41 ?         0:00 EZBREUPS
+ BPXROOT          4          1  - 19:24:41 ?         6:05 HSFUFSMN
+ BPXROOT   16777221          1  - 19:24:42 ?         0:40 HZSTKSCH
+ BPXROOT   33554438          1  - 19:24:50 ?         0:00 FTPD
+ BPXROOT   33554439          1  - 19:24:50 ?         0:01 SSHD
+ IBMUSER   50331650   33554439  - 08:10:22 ?         0:00 sshd: IBMUSER
+ STCDB2    67108865          1  - 19:25:10 ?         0:15 DB2SSU00
+ STCMQ     83886082          1  - 19:25:30 ?         0:10 CSQXJST
+ IZUSVR   100663299          1  - 19:26:00 ?         1:20 IZUANG1
+ WEBUSER  117440516          1  - 19:30:00 ?         0:05 httpd

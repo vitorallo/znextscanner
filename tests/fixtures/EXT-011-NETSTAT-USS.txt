@@ -1,0 +1,10 @@
+MVS TCP/IP NETSTAT CS 3.1       TCPIP Name: TCPIP           08:17:59
+User Id  Conn     Local Socket           Foreign Socket         State
+-------  ----     ------------           --------------         -----
+BPXOINIT 0000001C 0.0.0.0..10007         0.0.0.0..0             Listen
+CFZCIM   0000002B 0.0.0.0..5989          0.0.0.0..0             Listen
+DBBS1    0000002C 127.0.0.1..8180        0.0.0.0..0             Listen
+SSHD     00000038 0.0.0.0..22            0.0.0.0..0             Listen
+IZUSVR   00000045 0.0.0.0..10443         0.0.0.0..0             Listen
+TCPIP    00000050 0.0.0.0..23            0.0.0.0..0             Listen
+IBMUSER  00000055 192.168.1.10..22       192.168.1.5..54321     Establsh
