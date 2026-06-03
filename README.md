@@ -5,6 +5,8 @@
 - **`mrra`** (default) — Mainframe Ransomware Readiness Assessment: 32 automated checks across NIST CSF dimensions.
 - **`mythos`** — frontier-AI ("Claude Mythos"-class) readiness: a 42-control catalog (~37 checks run; the rest a workshop questionnaire) covering the readable operational-code surface, source/component exposure, hours-scale patch currency, and Respond/Recover — the gaps a frontier-AI adversary exploits. See [`MYTHOS.md`](MYTHOS.md).
 
+<img width="640" height="344" alt="scannerinaction" src="https://github.com/user-attachments/assets/c7fa647f-59cd-4fa2-918a-3839da9182d8" />
+
 Produces JSON, HTML, PDF, and Excel reports plus a Mythos questionnaire (Excel + JSON/CSV) and ZIP evidence bundles. All scriptable checks are live-validated against z/OS 3.1.
 
 > **Safe for production.** zNextScan is **read-only** (display/query commands only), installs **nothing** on z/OS, can be limited to the **z/OSMF REST API**, and runs as a **least-privilege, read-only user**. See [**docs/safe-use.md**](docs/safe-use.md).
