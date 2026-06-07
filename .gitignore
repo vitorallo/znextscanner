@@ -16,3 +16,7 @@ evidence/
 *-questionnaire.csv
 *-questionnaire.xlsx
 .DS_Store
+# internal-only docs / agent config — never publish
+CLAUDE.md
+AGENTS.md
+.claude/
