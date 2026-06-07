@@ -143,7 +143,7 @@ connection:
   timeout: 120
 
 scan:
-  profile: mythos         # 42-control catalog; auto-emits the questionnaire
+  profile: mythos         # 53-control catalog; auto-emits the questionnaire
 
 # recon (MYT-R02) stays off unless all three gates are set:
 # recon:

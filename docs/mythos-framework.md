@@ -31,8 +31,11 @@ Every Mythos control belongs to exactly one dimension, mapped to NIST CSF:
 
 `MYT-<D><nn>` — `<D>` is the dimension code, `<nn>` a zero-padded sequence (e.g. `MYT-R02`,
 `MYT-X01`). IDs are **stable once published**; expansion is additive-only and governed by the
-an additive catalog-expansion process. The catalog is 42 controls: most reuse/extend existing
-MRRA/EXT check classes, ~5 are new scriptable checks, ~13 are non-scriptable.
+an additive catalog-expansion process. The catalog is 53 controls (42 core + the 11 §6.1
+modern dev/runtime-surface controls): most reuse/extend existing MRRA/EXT check classes, 13
+are new native scriptable checks (`znextscan/checks/mythos_checks.py`), and the rest are
+non-scriptable (questionnaire). Four expansion controls (R11/R12/V08/V09) are Deferred —
+registered as questionnaire items pending Linux-on-Z and zCX backends.
 
 ## Validation Methods
 

@@ -572,6 +572,48 @@ def parse_rlist_class(output: str, class_name: str) -> list[dict[str, Any]]:
     return profiles
 
 
+_ACCESS_LEVELS = ("NONE", "EXECUTE", "READ", "UPDATE", "CONTROL", "ALTER")
+_ACCESS_RE = re.compile(r"^\s*(\S+)\s+(" + "|".join(_ACCESS_LEVELS) + r")\b")
+
+
+def parse_general_resource_access(output: str, class_name: str) -> list[dict[str, Any]]:
+    """Parse ``RLIST <class> * ALL`` output into profiles with their access lists.
+
+    Handles RACF general-resource classes (EJBROLE, ZMFAPLA, …). Each profile
+    block begins with a ``<class> <profile>`` line; the standard-access list
+    follows a ``USER      ACCESS`` column header and ends at the next blank line
+    or profile. Used by MYT-R10 to inventory the z/OSMF developer-plane roles
+    (IZUUSER/IZUADMIN/IZUSECADMIN) and how many identities hold each.
+
+    Returns a list of ``{"name", "generic", "access_list": [{"id", "access"}]}``.
+    """
+    profiles: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    in_access = False
+
+    for line in output.splitlines():
+        m = re.match(rf"^{re.escape(class_name)}\s+(\S+)", line)
+        if m:
+            current = {"name": m.group(1), "generic": "(G)" in line, "access_list": []}
+            profiles.append(current)
+            in_access = False
+            continue
+        if current is None:
+            continue
+        if re.match(r"^\s*USER\s+ACCESS\b", line, re.IGNORECASE):
+            in_access = True
+            continue
+        if in_access:
+            if not line.strip():
+                in_access = False
+                continue
+            am = _ACCESS_RE.match(line)
+            if am and am.group(1) != "----":
+                current["access_list"].append({"id": am.group(1), "access": am.group(2)})
+
+    return profiles
+
+
 def parse_netstat_conn(output: str) -> list[dict[str, str]]:
     """Parse NETSTAT CONN or USS netstat output for TCP connections.
 

@@ -4,7 +4,7 @@
 equivalent for. They use `MYT-*` control IDs, run only under `--profile mythos`,
 and target the frontier-AI exposure surface (readable code, leaked source,
 patch currency, recovery, API glass-box). See [`MYTHOS.md`](../MYTHOS.md) for the
-threat model and the full 42-control catalog; this doc covers the 10 native
+threat model and the full 53-control catalog; this doc covers the 13 native
 scriptable checks and **how to read each result**.
 
 ## Checks & commands
@@ -21,6 +21,9 @@ scriptable checks and **how to read each result**.
 | MYT-C12 | USS file-permission hardening | one USS `find` probe | Scanner | C |
 | MYT-X01 | Immutable backup presence | `D SMS,SG(ALL)` (console) | Hybrid | X |
 | MYT-X08 | SMF→SIEM real-time readiness | `D SMF,O` (console) | Hybrid | X |
+| MYT-R10 | Developer-plane access inventory | `D A,L` + `D TCPIP,,N,CONN` + `RLIST EJBROLE * ALL` | Scanner | R |
+| MYT-C16 | z/OSMF / REST API exposure hardening | `D TCPIP,,N,CONN` (+ `D A,L`) | Hybrid | C |
+| MYT-X12 | Developer-plane access logging → SIEM | `D SMF,O` (type 80/119 coverage) | Hybrid | X |
 
 ## How to interpret each check
 
@@ -34,6 +37,9 @@ scriptable checks and **how to read each result**.
 - **MYT-C12** — *USS file-perm hardening.* **Fail (CRITICAL)** = world/group-writable setuid/setgid file (trivial privesc) · **Fail** = world-writable file in /etc /var · **Pass** = none (setuid inventory reported) · **Skipped** = probe produced no output.
 - **MYT-X01** — *Immutable backup* (first Recover check). **Pass** = COPY-type storage group present (FlashCopy/Safeguarded Copy infra) · **Partial** = storage groups but no COPY-type (backups encryptable — confirm air-gap/immutability in questionnaire) · **Skipped** = no SMS groups.
 - **MYT-X08** — *SMF→SIEM readiness.* **Partial** = LOGSTREAM recording (real-time forwarding-capable; confirm SIEM ingestion in questionnaire) · **Fail** = DATASET recording (batch only, not real-time) · **Skipped** = method undetermined.
+- **MYT-R10** — *Developer-plane access inventory* (§6.1, M9). Inventories the REST/SSH developer plane: server address spaces (`D A,L`), their listeners (`D TCPIP,,N,CONN`, flagged when bound to `0.0.0.0`), and the z/OSMF authorization roles (`RLIST EJBROLE * ALL`, with privileged-role and permitted-identity **counts** — never userids). **Pass** = nothing detected · **Partial** = inventory present (tighten via MYT-C16/C17/X12). Runs in z/OSMF-only mode.
+- **MYT-C16** — *z/OSMF / REST API exposure hardening* (§6.1, M9). **Fail** = a REST/management listener (10443/9443/8443/7554/443) reachable on all interfaces (`0.0.0.0`/`::`) · **Partial** = listeners bound to a specific/loopback interface · **Skipped** = no REST listener found. TLS floor + client-cert/MFA posture are off-console → questionnaire (Hybrid).
+- **MYT-X12** — *Developer-plane access logging → SIEM* (§6.1, M9; extends X08). Checks SMF record-type coverage for the dev plane: type 80 (RACF auth) and type 119 (z/OSMF/IP REST activity). **Fail** = either type missing, or both present but DATASET (batch) recording · **Partial** = both present via LOGSTREAM (real-time forwardable; confirm SIEM ingestion in questionnaire) · **Skipped** = SMF options unparseable.
 
 ## Patterns
 

@@ -6,13 +6,13 @@ checks run and which catalog drives reporting.
 | Profile | Source | Checks | Default |
 |---------|--------|--------|---------|
 | `mrra` | legacy `CHECK_REGISTRY` | 32 (unchanged) | ✅ yes |
-| `mythos` | `znextscan/frameworks/mythos.py` | 42-control catalog → ~37 checks run (reused + native) | no |
+| `mythos` | `znextscan/frameworks/mythos.py` | 53-control catalog → 40 checks run (reused + native) | no |
 
 ## How it works
 
 - `BaseCheck` gained defaulted attrs `frameworks`, `mythos_dimension`,
   `validation_method` — existing checks need no edits (default to `("mrra",)`).
-- `znextscan/frameworks/mythos.py` holds `MYTHOS_CONTROLS` — 42 `ControlSpec`
+- `znextscan/frameworks/mythos.py` holds `MYTHOS_CONTROLS` — 53 `ControlSpec`
   entries (the implementation source of truth, mirrors `MYTHOS.md`). A control
   binds one or more existing checks via `scanner_check_id` + `extra_check_ids`
   (composite controls run several); non-scriptable controls carry questionnaire

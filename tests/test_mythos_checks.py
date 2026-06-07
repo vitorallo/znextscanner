@@ -6,18 +6,24 @@ import pytest
 
 from znextscan.checks.base_check import CheckStatus
 from znextscan.checks.mythos_checks import (
+    _C16_DELIM,
+    _MFADEF_DELIM,
+    _PROCLIB_DELIM,
+    _R10_ROLE_DELIM,
+    _R10_TCP_DELIM,
+    _TCPIP_DELIM,
     APISurfaceCheck,
     CVEExposureCheck,
+    DeveloperPlaneAccessCheck,
+    DeveloperPlaneLoggingCheck,
     ImmutableBackupCheck,
     MFACoverageCheck,
     OperationalCodeSurfaceCheck,
+    RESTAPIExposureCheck,
     SMFForwardingCheck,
     SMPECurrencyCheck,
     USSComponentPatchCheck,
     USSHardeningCheck,
-    _MFADEF_DELIM,
-    _PROCLIB_DELIM,
-    _TCPIP_DELIM,
 )
 from znextscan.connections.base import BaseConnection, CommandNotSupportedError
 from znextscan.connections.mock import MockConnection
@@ -169,6 +175,93 @@ def test_x08_smf_logstream_partial(conn: MockConnection) -> None:
     assert r.data["recording_method"] == "LOGSTREAM"
 
 
+# --- §6.1 expansion checks (M9–M12) ---
+
+
+def test_r10_developer_plane_inventory(conn: MockConnection) -> None:
+    r = DeveloperPlaneAccessCheck().run(conn)
+    assert r.control_id == "MYT-R10"
+    # Mock D A,L has IZUANG1 (z/OSMF angel); D TCPIP shows IZUSVR1:10443 + SSHD:22.
+    assert r.status == CheckStatus.PARTIAL
+    assert "z/OSMF Angel" in r.data["servers"]
+    assert "IZUSVR1" in r.data["listeners"]
+    assert "10443" in r.data["listeners"]["IZUSVR1"]["ports"]
+    assert r.data["listeners"]["IZUSVR1"]["exposed"] is True
+    # EJBROLE roles enumerated with privileged-role counts (no userids in findings).
+    assert r.data["role_count"] == 3
+    assert r.data["privileged_role_count"] == 2
+    assert r.data["total_permitted_ids"] == 5
+    assert not any("IBMUSER" in f for f in r.findings)
+
+
+def test_r10_passes_when_no_dev_plane() -> None:
+    chk = DeveloperPlaneAccessCheck()
+    out = f"  SOMEJOB  SOMEJOB  STEP1  NSW S\n{_R10_TCP_DELIM}\n\n{_R10_ROLE_DELIM}\n"
+    r = chk.evaluate(chk.parse(out))
+    assert r.status == CheckStatus.PASS
+    assert r.data["surface_count"] == 0
+
+
+def test_c16_exposed_listener_fails(conn: MockConnection) -> None:
+    r = RESTAPIExposureCheck().run(conn)
+    assert r.control_id == "MYT-C16"
+    # Mock D TCPIP: IZUSVR1 listens 0.0.0.0..10443 -> reachable on all interfaces -> FAIL.
+    assert r.status == CheckStatus.FAIL
+    assert any(l["port"] == "10443" for l in r.data["exposed"])
+    assert any("questionnaire" in f.lower() for f in r.findings)
+
+
+def test_c16_bound_listener_partial() -> None:
+    chk = RESTAPIExposureCheck()
+    tcp = (
+        " USER ID  CONN     LOCAL SOCKET           FOREIGN SOCKET         STATE\n"
+        " IZUSVR1  00000082 192.168.10.5..10443    0.0.0.0..0             LISTEN\n"
+    )
+    r = chk.evaluate(chk.parse(f"{tcp}\n{_C16_DELIM}\n"))
+    assert r.status == CheckStatus.PARTIAL
+    assert r.data["exposed"] == []
+
+
+def test_c16_no_listener_skips() -> None:
+    chk = RESTAPIExposureCheck()
+    r = chk.evaluate(chk.parse(f"no listeners here\n{_C16_DELIM}\n"))
+    assert r.status == CheckStatus.SKIPPED
+
+
+def test_x12_missing_type_119_fails(conn: MockConnection) -> None:
+    r = DeveloperPlaneLoggingCheck().run(conn)
+    assert r.control_id == "MYT-X12"
+    # Mock D SMF,O records type 80 (75:83) via LOGSTREAM but NOT type 119.
+    assert r.status == CheckStatus.FAIL
+    assert r.data["has_type_80"] is True
+    assert r.data["has_type_119"] is False
+    assert any("119" in f for f in r.findings)
+
+
+def test_x12_full_coverage_logstream_partial() -> None:
+    chk = DeveloperPlaneLoggingCheck()
+    out = (
+        "        SYS(TYPE(0,30,80,119,120)) -- PARMLIB\n"
+        "        RECORDING(LOGSTREAM) -- PARMLIB\n"
+        "        ACTIVE -- PARMLIB\n"
+    )
+    r = chk.evaluate(chk.parse(out))
+    assert r.status == CheckStatus.PARTIAL
+    assert r.data["has_type_119"] is True
+
+
+def test_x12_dataset_recording_fails() -> None:
+    chk = DeveloperPlaneLoggingCheck()
+    out = (
+        "        SYS(TYPE(0,30,80,119)) -- PARMLIB\n"
+        "        RECORDING(DATASET) -- PARMLIB\n"
+        "        ACTIVE -- PARMLIB\n"
+    )
+    r = chk.evaluate(chk.parse(out))
+    assert r.status == CheckStatus.FAIL
+    assert any("batch" in f.lower() for f in r.findings)
+
+
 @pytest.mark.parametrize(
     "check_cls",
     [
@@ -179,6 +272,9 @@ def test_x08_smf_logstream_partial(conn: MockConnection) -> None:
         MFACoverageCheck,
         USSHardeningCheck,
         SMFForwardingCheck,
+        DeveloperPlaneAccessCheck,
+        RESTAPIExposureCheck,
+        DeveloperPlaneLoggingCheck,
     ],
 )
 def test_hybrid_checks_skip_when_unsupported(check_cls: type) -> None:
@@ -250,4 +346,40 @@ class TestRealZosCaptures:
 
     def test_x08_real(self) -> None:
         data = SMFForwardingCheck().parse(_real("console_D_SMF_O.txt"))
+        assert data["recording_method"] == "LOGSTREAM"
+
+    def test_r10_real(self) -> None:
+        # Authentic z/OS 3.1 captures (D A,L, D TCPIP,,N,CONN, RLIST EJBROLE * ALL),
+        # captured live 2026-06-07.
+        combined = (
+            f"{_real('console_D_A_L.txt')}\n{_R10_TCP_DELIM}\n"
+            f"{_real('console_D_TCPIP_CONN.txt')}\n{_R10_ROLE_DELIM}\n"
+            f"{_real('tso_RLIST_EJBROLE.txt')}"
+        )
+        data = DeveloperPlaneAccessCheck().parse(combined)
+        # Real lab: IZUSVR1 (z/OSMF), ZOSCSRV (z/OS Connect), SSHD daemons present.
+        assert "z/OSMF (Liberty)" in data["servers"]
+        assert "z/OS Connect" in data["servers"]
+        assert "IZUSVR1" in data["listeners"]
+        assert "10443" in data["listeners"]["IZUSVR1"]["ports"]
+        # EJBROLE access list parsed from the real (generic-profile) RLIST format.
+        assert data["role_count"] == 1
+        assert data["roles"][0]["role"] == "IZUDFLT.*.izuUsers"
+        assert data["total_permitted_ids"] == 3
+
+    def test_c16_real(self) -> None:
+        data = RESTAPIExposureCheck().parse(
+            f"{_real('console_D_TCPIP_CONN.txt')}\n{_C16_DELIM}\n{_real('console_D_A_L.txt')}"
+        )
+        # Real lab: z/OSMF 10443 and z/OS Connect 9443 listen on 0.0.0.0 -> exposed.
+        exposed_ports = {l["port"] for l in data["exposed"]}
+        assert "10443" in exposed_ports
+        assert "9443" in exposed_ports
+        assert data["zosmf_active"] is True
+
+    def test_x12_real(self) -> None:
+        data = DeveloperPlaneLoggingCheck().parse(_real("console_D_SMF_O.txt"))
+        # Real lab ground truth: type 80 recorded, type 119 NOT recorded, LOGSTREAM.
+        assert data["has_type_80"] is True
+        assert data["has_type_119"] is False
         assert data["recording_method"] == "LOGSTREAM"

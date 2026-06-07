@@ -1,4 +1,4 @@
-"""Mythos control catalog (39 controls) — the implementation source of truth.
+"""Mythos control catalog (53 controls) — the implementation source of truth.
 
 Mirrors the catalog published in ``MYTHOS.md`` and
 ``MYTHOS.md``. Each control is a declarative
@@ -542,9 +542,135 @@ MYTHOS_CONTROLS: list[ControlSpec] = [
         "Backup architecture + automation evidence",
         extra_check_ids=("EXT-022",),
     ),
+    # --- §6.1 expansion: modern dev/runtime surface (scenarios M9–M12) ---
+    ControlSpec(
+        "MYT-R10",
+        "Developer-plane access inventory (z/OSMF/Zowe/RSE endpoints, users, scopes)",
+        DIM_READINESS,
+        "P0",
+        "Identify",
+        "Scanner",
+        "MYT-R10",
+        "What z/OSMF/Zowe/RSE/z/OS Connect endpoints exist and who is authorized?",
+        "Developer-plane endpoint + authorization inventory",
+    ),
+    ControlSpec(
+        "MYT-R11",
+        "Linux on Z / LinuxONE workload & z/OS network-adjacency inventory",
+        DIM_READINESS,
+        "P1",
+        "Identify",
+        "Hybrid",
+        None,  # deferred — needs a z/VM SMAPI or Linux-on-Z backend (not z/OS-displayable)
+        "Which Linux on Z / LinuxONE workloads exist and how are they network-adjacent "
+        "to z/OS (shared subnets, HiperSockets, shared credentials)?",
+        "Linux on Z inventory + network-adjacency diagram",
+    ),
+    ControlSpec(
+        "MYT-R12",
+        "zCX instance & container-image inventory (provenance)",
+        DIM_READINESS,
+        "P1",
+        "Identify",
+        "Hybrid",
+        None,  # deferred — image inventory needs the zCX Docker CLI backend
+        "Which zCX instances run, and what is the provenance of their container images?",
+        "zCX instance list + image/registry inventory",
+    ),
+    ControlSpec(
+        "MYT-C16",
+        "z/OSMF / REST API exposure hardening (TLS, listener exposure, auth)",
+        DIM_CONTROLS,
+        "P0",
+        "Protect",
+        "Hybrid",
+        "MYT-C16",
+        "Are z/OSMF/REST listeners restricted to the management network with a strong "
+        "TLS floor and client-cert/MFA enforcement?",
+        "z/OSMF TLS/AT-TLS config + listener bindings",
+    ),
+    ControlSpec(
+        "MYT-C17",
+        "Developer-tooling identity controls (MFA + least privilege for Zowe/VS Code/API IDs)",
+        DIM_CONTROLS,
+        "P0",
+        "Protect",
+        "Interview",
+        None,  # scriptable signals come from MYT-C10 (MFADEF) + MYT-R10 (role inventory)
+        "Are MFA and least-privilege enforced for every Zowe/VS Code/REST API identity?",
+        "Developer-tooling identity + MFA enrollment evidence",
+    ),
+    ControlSpec(
+        "MYT-C18",
+        "Linux on Z ↔ z/OS segmentation & credential separation",
+        DIM_CONTROLS,
+        "P1",
+        "Protect",
+        "Interview",
+        None,
+        "How are Linux on Z and z/OS segmented, with separated credentials, to stop "
+        "lateral movement?",
+        "Segmentation design + credential-separation policy",
+    ),
+    ControlSpec(
+        "MYT-C19",
+        "zCX image provenance & registry-trust controls",
+        DIM_CONTROLS,
+        "P1",
+        "Protect",
+        "Document",
+        None,
+        "What controls enforce trusted registries and verified image provenance for zCX?",
+        "Registry-trust policy + image-signing evidence",
+    ),
+    ControlSpec(
+        "MYT-C20",
+        "AI-modernization pipeline egress governance & merge control",
+        DIM_CONTROLS,
+        "P0",
+        "Protect",
+        "Interview",
+        None,
+        "Is AI-assisted modernization output security-reviewed and merge-controlled before "
+        "reaching production?",
+        "Merge-control + AI-output review policy",
+    ),
+    ControlSpec(
+        "MYT-V08",
+        "Linux on Z / LinuxONE patch currency (commodity CVE stream)",
+        DIM_VULN,
+        "P0",
+        "Identify",
+        "Hybrid",
+        None,  # deferred — needs a Linux-on-Z package backend (rpm/zypper/apt)
+        "Are Linux on Z / LinuxONE systems current against the commodity CVE stream?",
+        "Linux on Z patch/currency report",
+    ),
+    ControlSpec(
+        "MYT-V09",
+        "zCX base-image / container CVE currency",
+        DIM_VULN,
+        "P1",
+        "Identify",
+        "Hybrid",
+        None,  # deferred — needs the zCX Docker/image-scan backend
+        "Are zCX base images and containers current against known CVEs?",
+        "zCX image CVE-scan report",
+    ),
+    ControlSpec(
+        "MYT-X12",
+        "Developer-plane access logging (z/OSMF/Zowe/API) → SIEM",
+        DIM_RESPONSE,
+        "P1",
+        "Detect",
+        "Hybrid",
+        "MYT-X12",
+        "Are developer-plane access logs (SMF 80/119) forwarded to the SIEM in real time?",
+        "SIEM ingestion evidence for SMF 80/119",
+    ),
 ]
 
-assert len(MYTHOS_CONTROLS) == 42, f"expected 42 controls, got {len(MYTHOS_CONTROLS)}"
+assert len(MYTHOS_CONTROLS) == 53, f"expected 53 controls, got {len(MYTHOS_CONTROLS)}"
 
 
 def mythos_scanner_check_ids() -> list[str]:

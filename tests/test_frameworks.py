@@ -13,7 +13,45 @@ from znextscan.scanner import CHECK_REGISTRY, get_check_by_id, get_registry
 
 class TestMythosCatalog:
     def test_catalog_size(self) -> None:
-        assert len(MYTHOS_CONTROLS) == 42
+        assert len(MYTHOS_CONTROLS) == 53
+
+    def test_expansion_controls_present(self) -> None:
+        ids = {c.control_id for c in MYTHOS_CONTROLS}
+        # §6.1 expansion (M9–M12): all 11 registered.
+        assert {
+            "MYT-R10",
+            "MYT-R11",
+            "MYT-R12",
+            "MYT-C16",
+            "MYT-C17",
+            "MYT-C18",
+            "MYT-C19",
+            "MYT-C20",
+            "MYT-V08",
+            "MYT-V09",
+            "MYT-X12",
+        }.issubset(ids)
+
+    def test_expansion_scriptable_targets_bind_to_native_checks(self) -> None:
+        for cid in ("MYT-R10", "MYT-C16", "MYT-X12"):
+            spec = next(c for c in MYTHOS_CONTROLS if c.control_id == cid)
+            assert spec.is_scriptable, cid
+            assert spec.scanner_check_id == cid
+
+    def test_deferred_expansion_controls_are_questionnaire_only(self) -> None:
+        for cid in (
+            "MYT-R11",
+            "MYT-R12",
+            "MYT-V08",
+            "MYT-V09",
+            "MYT-C17",
+            "MYT-C18",
+            "MYT-C19",
+            "MYT-C20",
+        ):
+            spec = next(c for c in MYTHOS_CONTROLS if c.control_id == cid)
+            assert not spec.is_scriptable, cid
+            assert spec.needs_questionnaire, cid
 
     def test_composite_controls_multibind(self) -> None:
         # C05 must run all its declared checks, not just the primary.

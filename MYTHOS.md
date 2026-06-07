@@ -38,8 +38,15 @@ risk multiplier is therefore **whether your mainframe code has leaked or been ma
 - **Modernization glass-boxing** — z/OS Connect / USS containers exposing readable code paths.
 - **Breach-dump & training corpora** — prior incident data, runbooks ingestible by an
   adversary's model.
+- **Modern developer & runtime plane** — Zowe / VS Code (Zowe Explorer) / z/OSMF & RSE REST
+  access widen *who* can read datasets, edit members, and submit jobs (the skill floor drops to
+  "install an extension"); **Linux on Z / LinuxONE** adds commodity OS attack surface and CVE
+  streams adjacent to z/OS; **zCX** runs Docker containers inside z/OS with container-grade
+  supply-chain exposure next to crown-jewel data.
 
 Exposure reconnaissance is a first-class, **authorization-gated** control class (MYT-R02).
+The modern dev/runtime plane is inventoried and hardened by the expansion controls
+(MYT-R10–R12, MYT-C16–C20, MYT-V08–V09, MYT-X12) added in §6.1.
 
 ## 3. Threat Actor Profiles
 
@@ -65,6 +72,10 @@ DREAD = mean of Damage, Reproducibility, Exploitability, Affected-users, Discove
 | M6 | AI-generated environment-adaptive ransomware batch payload (disables backups, tampers SMF) | DoS, Repudiation | Foothold + topology inferred | 7.8 | HIGH |
 | M7 | Machine-speed anti-forensics / SMF & audit tampering | Repudiation | Foothold with audit-write reach | 7.4 | HIGH |
 | M8 | AI-augmented insider (skill ceiling removed for deep sabotage) | All | Privileged insider | 7.6 | HIGH |
+| M9 | Developer-plane compromise via Zowe / VS Code / z/OSMF REST (dataset/member/job access from a laptop) | Spoofing, Elevation, Tampering, Info Disclosure | Exposed/over-privileged z/OSMF or Zowe identity, weak MFA | 8.2 | CRITICAL |
+| M10 | Linux on Z / LinuxONE foothold pivoting into z/OS (shared network/identity/storage) | Elevation, Tampering | Flat network or shared creds between Linux on Z and z/OS | 8.0 | CRITICAL |
+| M11 | zCX container supply-chain compromise (malicious/vulnerable image running inside z/OS) | Tampering, Elevation | Unverified image provenance; zCX with reach to z/OS resources | 7.7 | HIGH |
+| M12 | Poisoned AI dev-tooling output merged to production (backdoored COBOL/REXX refactor) | Tampering | AI-assisted modernization without security review/merge control | 7.5 | HIGH |
 
 ## 5. The Four Dimensions
 
@@ -79,7 +90,7 @@ The framework organizes all controls into four dimensions mapped to NIST CSF:
 4. **Response & Recovery** (Respond/Recover) — immutable/air-gapped backup, Cyber Vault,
    recovery drills, AI-intrusion IR, SIEM forwarding. *(MRRA had none of these.)*
 
-## 6. Control Catalog (42)
+## 6. Control Catalog (53)
 
 ID scheme `MYT-<D><nn>`: `R` Readiness, `C` Controls, `V` Vuln-patching, `X`
 response/recovery. Validation: Scanner | Interview | Document | Hybrid. "Reuse" = existing
@@ -147,11 +158,49 @@ zNextScan/MRRA check class re-registered or reframed.
 | MYT-X10 | RACF audit logging coverage | P0 | Detect | Scanner | MON-003/EXT-007/008 |
 | MYT-X11 | Backup infrastructure & automation | P1 | Recover | Hybrid | EXT-021/022 |
 
-**Totals:** 42 controls — ~27 scriptable (running 37 reused+native checks),
-~15 Interview/Document-only → questionnaire deliverable. Composite controls
-(C04/C05/C07/C09/C13) and the expansion controls (C15/X10/X11) bind multiple
-existing checks. Bucket-3 MRRA checks deliberately not migrated: EXT-003/005/011/012,
-MON-001.
+### 6.1 Expansion — Modern dev/runtime surface (M9–M12)
+
+Covers the access paths and runtimes the original catalog under-modelled: the REST developer
+plane (Zowe/VS Code/z/OSMF), Linux on Z / LinuxONE, and zCX.
+
+> **Status: feasibility review complete — implemented where scriptable.** The three
+> near-term scriptable targets (`MYT-R10 / C16 / X12`) ship as zNextScan-native checks
+> driven by `D` console commands + `RLIST EJBROLE` over the existing connection
+> abstraction, so they run in the z/OSMF-API-only mode (no SSH/USS). The Linux-on-Z and
+> zCX controls (`R11 / R12 / V08 / V09`) are **Deferred** — they need a z/VM/Linux or zCX
+> Docker backend that does not yet exist and are not z/OS-displayable — and are delivered
+> now as questionnaire items. `C17–C20` are questionnaire-by-design (no scriptable data
+> source beyond what C10/R10 already surface). The `Validation` column below is the method
+> actually delivered. The three scriptable checks were **live-validated on z/OS 3.1
+> (2026-06-07)** through the real `ZOSMFConnection` (console + TSO): R10 detected
+> IZUSVR1/IZUANG1/ZOSCSRV/SSHD6 + the `IZUDFLT.*.izuUsers` EJBROLE role; C16 flagged
+> z/OSMF :10443 and z/OS Connect :9443 exposed on `0.0.0.0`; X12 confirmed SMF type 80
+> present / 119 absent / LOGSTREAM. Captures are in `tests/fixtures/real_zos/`
+> (`D A,L`, `D TCPIP,,N,CONN`, `RLIST EJBROLE * ALL`, `D SMF,O`).
+
+| ID | Name | Pri | NIST | Validation | Scenario | Reuse / Source | Status |
+|----|------|-----|------|-----------|----------|----------------|--------|
+| MYT-R10 | Developer-plane access inventory (z/OSMF/Zowe/RSE endpoints, registered users, scopes) | P0 | Identify | Scanner | M9 | new (`D A,L` + `D TCPIP` + `RLIST EJBROLE`) | Implemented |
+| MYT-R11 | Linux on Z / LinuxONE workload & z/OS network-adjacency inventory | P1 | Identify | Hybrid | M10 | new | Deferred — needs Linux-on-Z/z-VM backend (questionnaire delivered) |
+| MYT-R12 | zCX instance & container-image inventory (provenance) | P1 | Identify | Hybrid | M11 | new | Deferred — needs zCX Docker backend (questionnaire delivered) |
+| MYT-C16 | z/OSMF / REST API exposure hardening (TLS, listener exposure, auth) | P0 | Protect | Hybrid | M9 | new (`D TCPIP,,N,CONN` listener exposure) | Implemented |
+| MYT-C17 | Developer-tooling identity controls (MFA + least privilege for Zowe/VS Code/API IDs) | P0 | Protect | Interview | M9 | MYT-C10 + MYT-R10 signals | Implemented (questionnaire) |
+| MYT-C18 | Linux on Z ↔ z/OS segmentation & credential separation | P1 | Protect | Interview | M10 | MYT-C14 extension | Implemented (questionnaire) |
+| MYT-C19 | zCX image provenance & registry-trust controls | P1 | Protect | Document | M11 | new | Implemented (questionnaire) |
+| MYT-C20 | AI-modernization pipeline egress governance & merge control | P0 | Protect | Interview | M12 | MYT-R03/C11 extension | Implemented (questionnaire) |
+| MYT-V08 | Linux on Z / LinuxONE patch currency (commodity CVE stream) | P0 | Identify | Hybrid | M10 | new | Deferred — needs Linux-on-Z package backend (questionnaire delivered) |
+| MYT-V09 | zCX base-image / container CVE currency | P1 | Identify | Hybrid | M11 | new / EXT-002 adjacency | Deferred — needs zCX image-scan backend (questionnaire delivered) |
+| MYT-X12 | Developer-plane access logging (z/OSMF/Zowe/API) → SIEM | P1 | Detect | Hybrid | M9 | MYT-X08 extension (`D SMF,O` type 80/119) | Implemented |
+
+**Totals:** 53 controls (42 core + 11 expansion). The mythos profile now runs **40
+reused+native checks**. Of the expansion set, **MYT-R10 / C16 / X12** are implemented as
+native scriptable checks (`D A,L` + `D TCPIP,,N,CONN` + `RLIST EJBROLE`, and `D SMF,O`
+record-type coverage) — all functioning in the z/OSMF-API-only mode. **R11 / R12 / V08 /
+V09** are Deferred (Hybrid): the Linux-on-Z and zCX backends they require do not exist and
+their data is not z/OS-displayable, so they ship as questionnaire items. **C17–C20** are
+questionnaire-by-design. Composite controls (C04/C05/C07/C09/C13) and the catalog-expansion
+controls (C15/X10/X11) bind multiple existing checks. Bucket-3 legacy ransomware-readiness
+checks deliberately not migrated: EXT-003/005/011/012, MON-001.
 
 ## 7. Scriptable vs. Questionnaire
 
@@ -168,8 +217,15 @@ plus a documented rules-of-engagement (`docs/mythos-recon.md`).
 
 ## References
 
-- Anthropic Claude Mythos (Apr 2026); CNBC, Bain, The Conversation, Dark Reading analyses.
-- Google M-Trends 2026 (mean-time-to-exploit ≈ −7 days).
-- Unit 42 Frontier AI Defense (3-phase model: discover exposure → strengthen controls →
-  modernize detect/respond).
+- Anthropic, "Assessing Claude Mythos Preview's cybersecurity capabilities," 7 Apr 2026
+  (red.anthropic.com) — autonomous 0-day discovery + exploit development.
+- Anthropic, "Disrupting the first reported AI-orchestrated cyber espionage campaign"
+  (GTG-1002), 13 Nov 2025 — AI ran ~80–90% of a state-sponsored operation.
+- Google / Mandiant, M-Trends 2026 (23 Mar 2026) — mean-time-to-exploit ≈ −7 days
+  (63 days in 2018, crossed zero in 2024).
+- Google Big Sleep (CVE-2025-6965, live SQLite 0-day); XBOW #1 HackerOne US (Q2 2025);
+  DARPA AIxCC final — 18 real 0-days (DEF CON, Aug 2025).
+- IBM, "Lost in translation…" (23 Feb 2026) — watsonx Code Assistant for Z, COBOL skills gap.
+- Unit 42 (Palo Alto), "Frontier AI Defense," 17 Apr 2026 (3-phase: discover exposure →
+  strengthen controls → modernize detect/respond).
 - IBM Z Cyber Vault, DS8000 Safeguarded Copy (storage-layer immutability).

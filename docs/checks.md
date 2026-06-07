@@ -11,7 +11,7 @@ zNextScan runs under a selectable **profile** (`--profile`):
 | Profile | Catalog | Checks | Default |
 |---------|---------|--------|---------|
 | `mrra` | Mainframe Ransomware Readiness Assessment | 32 | ✅ |
-| `mythos` | Frontier-AI readiness (`MYTHOS.md`) | 42 controls, ~37 checks | — |
+| `mythos` | Frontier-AI readiness (`MYTHOS.md`) | 53 controls, 40 checks | — |
 
 The Mythos-native checks have their own guide: [`mythos-checks.md`](mythos-checks.md).
 Framework background: [`mythos-framework.md`](mythos-framework.md).
@@ -98,7 +98,7 @@ backup, MFA framework, API glass-box, USS file-perm hardening, SMF→SIEM
 readiness). Non-scriptable controls become the **questionnaire** deliverable.
 
 See **[`mythos-checks.md`](mythos-checks.md)** for the per-check guide and
-interpretation, and **[`MYTHOS.md`](../MYTHOS.md)** for the full 42-control
+interpretation, and **[`MYTHOS.md`](../MYTHOS.md)** for the full 53-control
 catalog and threat model.
 
 ## Error handling

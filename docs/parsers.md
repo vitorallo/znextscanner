@@ -26,7 +26,7 @@ On z/OS 3.1:
 
 ## Parser Functions
 
-`racf_parser.py` provides **23** data-driven parsers (regex-based; missing
+`racf_parser.py` provides **24** data-driven parsers (regex-based; missing
 fields return `None`/empty so older z/OS degrades gracefully):
 
 | Function | Input command | Returns |
@@ -42,6 +42,7 @@ fields return `None`/empty so older z/OS degrades gracefully):
 | `parse_program_control` | `SETROPTS LIST` | `dict` when_program + PROGRAM-class membership |
 | `parse_active_classes` | `SETROPTS LIST` | `list[str]` active RACF classes |
 | `parse_rlist_class` | `RLIST <class> * ALL` | `list[dict]` profiles/uacc (APPL, CONSOLE, MFADEF) |
+| `parse_general_resource_access` | `RLIST <class> * ALL` | `list[dict]` profile + access_list (EJBROLE roles for MYT-R10) |
 | `parse_smf_status` | `D SMF,O` | `dict` active/type-flags/recording method |
 | `parse_icsf_status` | `D ICSF` | `dict` active/fmid |
 | `parse_icsf_cards` | `D ICSF,CARDS` | `list[dict]` crypto cards |

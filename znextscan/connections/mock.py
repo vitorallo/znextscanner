@@ -18,6 +18,7 @@ FIXTURE_MAP: dict[str, str] = {
     "NETSTAT CONN": "EXT-001-NETSTAT-CONN.txt",
     "LISTDS": "EXT-013-LISTDS-LABEL.txt",
     "RLIST MFADEF": "MYT-C10-MFADEF.txt",
+    "RLIST EJBROLE": "MYT-R10-EJBROLE.txt",
     # Mythos-native scriptable checks
     "LISTA STATUS": "MYT-R01-LISTALC.txt",
     "$D PROCLIB": "MYT-R01-PROCLIB.txt",

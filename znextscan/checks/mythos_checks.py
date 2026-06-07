@@ -850,6 +850,385 @@ class SMFForwardingCheck(BaseCheck):
         )
 
 
+# ---------------------------------------------------------------------------
+# §6.1 expansion — modern dev/runtime surface (scenarios M9–M12)
+# ---------------------------------------------------------------------------
+
+_R10_TCP_DELIM = "@@R10TCP@@"
+_R10_ROLE_DELIM = "@@R10ROLE@@"
+
+# Address-space name patterns for the modern REST/SSH developer plane.
+_DEV_PLANE_SERVERS: list[tuple[str, str]] = [
+    ("z/OSMF (Liberty)", r"\bIZUSVR\d*\b"),
+    ("z/OSMF Angel", r"\bIZUANG\d*\b"),
+    ("z/OS Connect", r"\b(?:ZOSCSRV|ZCEE[A-Z0-9]*|BAQ[A-Z0-9]*)\b"),
+    ("RSE API / RSED (IDz)", r"\b(?:RSED|RSEAPI|FEKF[A-Z0-9]*)\b"),
+    ("Zowe", r"\b(?:ZWES[A-Z0-9]*|ZWE[A-Z0-9]*|ZOWE[A-Z0-9]*)\b"),
+    ("SSH daemon", r"\bSSHD\d*\b"),
+]
+
+# Listening ports that mark the REST/SSH developer plane (z/OSMF 10443,
+# z/OS Connect 9443/8443, Zowe gateway/discovery 7552/7554, RSE API 6800, SSH 22).
+_DEV_PLANE_PORTS = {"22", "443", "6800", "7552", "7554", "8443", "9443", "10443"}
+
+# z/OSMF EJBROLE roles that grant elevated authority (admin / security admin).
+_PRIVILEGED_ROLE_SUFFIXES = ("IZUADMIN", "IZUSECADMIN")
+
+
+def _is_wildcard_socket(sock: str) -> bool:
+    """A listener bound to all interfaces (IPv4 0.0.0.0 or IPv6 ::)."""
+    return sock.startswith("0.0.0.0") or (sock.startswith("::") and not sock.startswith("::1"))
+
+
+class DeveloperPlaneAccessCheck(BaseCheck):
+    """MYT-R10: Developer-plane access inventory (M9).
+
+    Inventories the modern REST/SSH developer plane — the access paths that let
+    a laptop read datasets, edit members, and submit jobs (z/OSMF, Zowe, RSE
+    API, z/OS Connect, SSH). Three console/TSO signals, all available in the
+    z/OSMF-only mode:
+      * ``D A,L``            — developer-plane server address spaces
+      * ``D TCPIP,,N,CONN``  — their listening endpoints (and wildcard exposure)
+      * ``RLIST EJBROLE * ALL`` — z/OSMF authorization roles + how many
+        identities hold each (the "registered users / scopes")
+
+    Read-only and redaction-safe: findings carry server/role *names* and counts,
+    never individual userids. Degrades to ``Skipped`` if ``D A,L`` is
+    unavailable.
+    """
+
+    control_id = "MYT-R10"
+    control_name = "Developer-plane access inventory (z/OSMF/Zowe/RSE)"
+    nist_function = "Identify"
+    priority = "P0"
+    frameworks = ("mythos",)
+    mythos_dimension = "R"
+    validation_method = "Scanner"
+
+    def execute(self, connection: BaseConnection) -> str:
+        dal = connection.execute_console_command("D A,L")
+        # Listener + role enrichment are optional — tolerate console/TSO/auth
+        # failures so name-based detection from D A,L still returns a result.
+        try:
+            tcp = connection.execute_console_command("D TCPIP,,N,CONN")
+        except Exception:
+            tcp = ""
+        try:
+            roles = connection.execute_tso_command("RLIST EJBROLE * ALL")
+        except Exception:
+            roles = ""
+        return f"{dal}\n{_R10_TCP_DELIM}\n{tcp}\n{_R10_ROLE_DELIM}\n{roles}"
+
+    def parse(self, output: str) -> dict[str, Any]:
+        from znextscan.parsers.racf_parser import (
+            parse_general_resource_access,
+            parse_netstat_conn,
+        )
+
+        dal, _, rest = output.partition(_R10_TCP_DELIM)
+        tcp, _, roles_out = rest.partition(_R10_ROLE_DELIM)
+
+        servers: dict[str, list[str]] = {}
+        for label, pattern in _DEV_PLANE_SERVERS:
+            matches = sorted(set(re.findall(pattern, dal)))
+            if matches:
+                servers[label] = matches
+        server_names = {n for names in servers.values() for n in names}
+
+        listeners: dict[str, dict[str, Any]] = {}
+        for c in parse_netstat_conn(tcp):
+            if c["state"] != "LISTEN":
+                continue
+            if c["port"] not in _DEV_PLANE_PORTS and c["userid"] not in server_names:
+                continue
+            entry = listeners.setdefault(c["userid"], {"ports": [], "exposed": False})
+            if c["port"] not in entry["ports"]:
+                entry["ports"].append(c["port"])
+            if _is_wildcard_socket(c["local_socket"]):
+                entry["exposed"] = True
+
+        roles = parse_general_resource_access(roles_out, "EJBROLE")
+        role_summary: list[dict[str, Any]] = []
+        for r in roles:
+            name = r["name"]
+            role_summary.append(
+                {
+                    "role": name,
+                    "permitted_ids": len(r["access_list"]),
+                    "privileged": name.upper().endswith(_PRIVILEGED_ROLE_SUFFIXES),
+                }
+            )
+
+        surface = server_names | set(listeners)
+        return {
+            "servers": servers,
+            "listeners": listeners,
+            "roles": role_summary,
+            "role_count": len(role_summary),
+            "privileged_role_count": sum(1 for r in role_summary if r["privileged"]),
+            "total_permitted_ids": sum(r["permitted_ids"] for r in role_summary),
+            "surface_count": len(surface),
+        }
+
+    def evaluate(self, data: dict[str, Any]) -> CheckResult:
+        servers = data["servers"]
+        listeners = data["listeners"]
+        roles = data["roles"]
+        if not servers and not listeners and not roles:
+            return CheckResult(
+                control_id=self.control_id,
+                control_name=self.control_name,
+                status=CheckStatus.PASS,
+                findings=[
+                    "No developer-plane (z/OSMF/Zowe/RSE/z/OS Connect/SSH) servers, "
+                    "REST listeners, or z/OSMF roles detected."
+                ],
+                data=data,
+            )
+
+        findings = [f"Developer-plane surface: {data['surface_count']} endpoint(s)."]
+        for label, names in servers.items():
+            findings.append(f"  server: {label} — {', '.join(names)}")
+        for job, info in listeners.items():
+            flag = " EXPOSED(0.0.0.0)" if info["exposed"] else ""
+            findings.append(f"  listener: {job} :{','.join(info['ports'])}{flag}")
+        if roles:
+            priv = [r["role"] for r in roles if r["privileged"]]
+            findings.append(
+                f"z/OSMF authorization roles (EJBROLE): {data['role_count']} defined, "
+                f"{data['privileged_role_count']} privileged, "
+                f"{data['total_permitted_ids']} permitted identities total."
+            )
+            if priv:
+                findings.append("  privileged roles: " + ", ".join(priv))
+        else:
+            findings.append(
+                "z/OSMF EJBROLE roles not enumerated (class absent or RLIST unavailable) "
+                "— confirm developer-plane authorization scopes via questionnaire."
+            )
+        findings.append(
+            "Restrict and MFA-protect these identities (MYT-C16/C17) and forward their "
+            "access logs to the SIEM (MYT-X12)."
+        )
+        return CheckResult(
+            control_id=self.control_id,
+            control_name=self.control_name,
+            status=CheckStatus.PARTIAL,
+            findings=findings,
+            data=data,
+        )
+
+
+_C16_DELIM = "@@C16DA@@"
+# REST / management API ports whose listener exposure MYT-C16 assesses.
+_REST_API_PORTS = {"443", "7554", "8443", "9443", "10443"}
+
+
+class RESTAPIExposureCheck(BaseCheck):
+    """MYT-C16: z/OSMF / REST API exposure hardening (M9).
+
+    Scriptable signal: are the z/OSMF / REST management listeners reachable on
+    *all* interfaces (0.0.0.0 / ::) versus bound to a management interface or
+    loopback? Derived from ``D TCPIP,,N,CONN`` (with ``D A,L`` to confirm
+    z/OSMF is up) — both available in z/OSMF-only mode. The deeper posture (TLS
+    protocol/cipher floor, client-cert / MFA enforcement) lives in Liberty
+    ``server.xml`` and the AT-TLS policy, off-console, so it is deferred to the
+    questionnaire — this is a Hybrid control.
+    """
+
+    control_id = "MYT-C16"
+    control_name = "z/OSMF / REST API exposure hardening"
+    nist_function = "Protect"
+    priority = "P0"
+    frameworks = ("mythos",)
+    mythos_dimension = "C"
+    validation_method = "Hybrid"
+
+    _Q_NOTE = (
+        "TLS protocol/cipher floor and client-cert/MFA enforcement are off-console — "
+        "confirm via questionnaire (MYT-C16)."
+    )
+
+    def execute(self, connection: BaseConnection) -> str:
+        tcp = connection.execute_console_command("D TCPIP,,N,CONN")
+        try:
+            dal = connection.execute_console_command("D A,L")
+        except Exception:
+            dal = ""
+        return f"{tcp}\n{_C16_DELIM}\n{dal}"
+
+    def parse(self, output: str) -> dict[str, Any]:
+        from znextscan.parsers.racf_parser import parse_netstat_conn
+
+        tcp, _, dal = output.partition(_C16_DELIM)
+        rest_listeners: list[dict[str, Any]] = []
+        for c in parse_netstat_conn(tcp):
+            if c["state"] != "LISTEN" or c["port"] not in _REST_API_PORTS:
+                continue
+            sock = c["local_socket"]
+            rest_listeners.append(
+                {
+                    "userid": c["userid"],
+                    "port": c["port"],
+                    "local_socket": sock,
+                    "exposed": _is_wildcard_socket(sock),
+                }
+            )
+        return {
+            "rest_listeners": rest_listeners,
+            "zosmf_active": bool(re.search(r"\bIZUSVR\d*\b", dal)),
+            "exposed": [l for l in rest_listeners if l["exposed"]],
+        }
+
+    def evaluate(self, data: dict[str, Any]) -> CheckResult:
+        listeners = data["rest_listeners"]
+        if not listeners:
+            return CheckResult(
+                control_id=self.control_id,
+                control_name=self.control_name,
+                status=CheckStatus.SKIPPED,
+                findings=[
+                    "No z/OSMF/REST management listener detected on the standard ports "
+                    "— confirm REST API exposure and TLS posture via questionnaire (MYT-C16)."
+                ],
+                data=data,
+            )
+        exposed = data["exposed"]
+        if exposed:
+            return CheckResult(
+                control_id=self.control_id,
+                control_name=self.control_name,
+                status=CheckStatus.FAIL,
+                findings=[
+                    f"{len(exposed)} REST/management API listener(s) reachable on ALL "
+                    "interfaces (0.0.0.0/::):",
+                    *[f"  {l['userid']} :{l['port']} ({l['local_socket']})" for l in exposed],
+                    "Restrict z/OSMF/REST listeners to the management network/interface.",
+                    self._Q_NOTE,
+                ],
+                data=data,
+            )
+        return CheckResult(
+            control_id=self.control_id,
+            control_name=self.control_name,
+            status=CheckStatus.PARTIAL,
+            findings=[
+                f"{len(listeners)} REST/management API listener(s) bound to a specific or "
+                "loopback interface (not wildcard):",
+                *[f"  {l['userid']} :{l['port']} ({l['local_socket']})" for l in listeners],
+                self._Q_NOTE,
+            ],
+            data=data,
+        )
+
+
+class DeveloperPlaneLoggingCheck(BaseCheck):
+    """MYT-X12: Developer-plane access logging → SIEM (M9; extends MYT-X08).
+
+    Where MYT-X08 asks *how* SMF is recorded (LOGSTREAM vs dataset), MYT-X12
+    asks whether the SMF record *types* that capture developer-plane access are
+    actually being collected:
+      * type 80  — RACF processing (z/OSMF/Zowe/RSE logon & access decisions)
+      * type 119 — z/OS & TCP/IP, incl. z/OSMF REST API activity
+
+    Scriptable via ``D SMF,O`` (console, z/OSMF-only OK). The actual SIEM
+    ingestion is off-platform, so it is deferred to the questionnaire — Hybrid.
+    """
+
+    control_id = "MYT-X12"
+    control_name = "Developer-plane access logging to SIEM"
+    nist_function = "Detect"
+    priority = "P1"
+    frameworks = ("mythos",)
+    mythos_dimension = "X"
+    validation_method = "Hybrid"
+
+    _Q_NOTE = (
+        "Confirm these SMF record types are ingested by the SIEM in real time via "
+        "questionnaire (MYT-X12)."
+    )
+
+    def execute(self, connection: BaseConnection) -> str:
+        return connection.execute_console_command("D SMF,O")
+
+    def parse(self, output: str) -> dict[str, Any]:
+        from znextscan.parsers.racf_parser import parse_smf_status
+
+        s = parse_smf_status(output)
+        recorded = set(s.get("recorded_types") or [])
+        return {
+            "recording_method": s.get("recording_method"),
+            "has_type_80": bool(s.get("has_type_80")),
+            "has_type_119": 119 in recorded,
+            "recorded_type_count": len(recorded),
+        }
+
+    def evaluate(self, data: dict[str, Any]) -> CheckResult:
+        method = (data.get("recording_method") or "").upper()
+        if not method and not data.get("recorded_type_count"):
+            return CheckResult(
+                control_id=self.control_id,
+                control_name=self.control_name,
+                status=CheckStatus.SKIPPED,
+                findings=[
+                    "SMF options not parseable — verify developer-plane logging via questionnaire"
+                ],
+                data=data,
+            )
+
+        missing: list[str] = []
+        if not data["has_type_80"]:
+            missing.append("80 (RACF auth — z/OSMF/Zowe/RSE logon & access)")
+        if not data["has_type_119"]:
+            missing.append("119 (z/OS & TCP/IP — z/OSMF REST API activity)")
+
+        if missing:
+            return CheckResult(
+                control_id=self.control_id,
+                control_name=self.control_name,
+                status=CheckStatus.FAIL,
+                findings=[
+                    "Developer-plane access is not fully captured in SMF — missing record "
+                    "type(s): " + "; ".join(missing) + ".",
+                    f"SMF recording method: {method or 'unknown'}.",
+                    self._Q_NOTE,
+                ],
+                data=data,
+            )
+
+        if method == "LOGSTREAM":
+            return CheckResult(
+                control_id=self.control_id,
+                control_name=self.control_name,
+                status=CheckStatus.PARTIAL,
+                findings=[
+                    "Developer-plane record types present (SMF 80 RACF, 119 z/OSMF/IP) and "
+                    "recorded via System Logger log streams — real-time SIEM-forwardable.",
+                    self._Q_NOTE,
+                ],
+                data=data,
+            )
+        if method == "DATASET":
+            return CheckResult(
+                control_id=self.control_id,
+                control_name=self.control_name,
+                status=CheckStatus.FAIL,
+                findings=[
+                    "Developer-plane record types present (SMF 80, 119) but recorded to "
+                    "datasets (batch) — not real-time SIEM-ready; move SMF to LOGSTREAM "
+                    "recording for machine-speed detection."
+                ],
+                data=data,
+            )
+        return CheckResult(
+            control_id=self.control_id,
+            control_name=self.control_name,
+            status=CheckStatus.SKIPPED,
+            findings=["SMF recording method undetermined — verify via questionnaire"],
+            data=data,
+        )
+
+
 MYTHOS_NATIVE_CHECKS: list[type[BaseCheck]] = [
     OperationalCodeSurfaceCheck,
     SourceExposureReconCheck,
@@ -861,4 +1240,8 @@ MYTHOS_NATIVE_CHECKS: list[type[BaseCheck]] = [
     APISurfaceCheck,
     USSHardeningCheck,
     SMFForwardingCheck,
+    # §6.1 expansion (M9–M12)
+    DeveloperPlaneAccessCheck,
+    RESTAPIExposureCheck,
+    DeveloperPlaneLoggingCheck,
 ]

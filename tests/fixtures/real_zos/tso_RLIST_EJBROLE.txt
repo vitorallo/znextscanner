@@ -1,0 +1,48 @@
+CLASS      NAME
+-----      ----
+EJBROLE    IZUDFLT.*.izuUsers (G)                                              
+GROUP CLASS NAME
+----- ----- ----
+GEJBROLE                                                                       
+RESOURCE GROUPS
+-------- ------
+NONE                                                                           
+LEVEL  OWNER      UNIVERSAL ACCESS  YOUR ACCESS  WARNING
+-----  --------   ----------------  -----------  -------
+ 00    IBMUSER         NONE               READ    NO                           
+INSTALLATION DATA
+-----------------
+NONE                                                                           
+APPLICATION DATA
+----------------
+NONE                                                                           
+SECLEVEL
+--------
+NO SECLEVEL
+CATEGORIES
+----------
+NO CATEGORIES
+SECLABEL
+--------
+NO SECLABEL
+AUDITING
+--------
+FAILURES(READ)                                                                 
+NOTIFY
+------
+NO USER TO BE NOTIFIED
+CREATION DATE  LAST REFERENCE DATE  LAST CHANGE DATE
+ (DAY) (YEAR)       (DAY) (YEAR)      (DAY) (YEAR)
+-------------  -------------------  ----------------
+  245    21          245    21         245    21                               
+ALTER COUNT   CONTROL COUNT   UPDATE COUNT   READ COUNT
+-----------   -------------   ------------   ----------
+NOT APPLICABLE FOR GENERIC PROFILE
+USER      ACCESS  
+----      ------  
+IZUUSER   READ                                                                 
+IZUADMIN  READ                                                                 
+IZUSECAD  READ                                                                 
+   ID     ACCESS  CLASS                ENTITY NAME        
+-------- ------- -------- ---------------------------------------
+NO ENTRIES IN CONDITIONAL ACCESS LIST

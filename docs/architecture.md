@@ -72,8 +72,8 @@ znextscan/
 ├── logging.py
 ├── connections/          # base, zosmf, ssh, hybrid, mock, factory
 ├── checks/               # base_check + id/iam/mon/enc/sci/ext + mythos_checks
-├── frameworks/           # mythos.py — 42-control catalog (ControlSpec)
-├── parsers/              # racf_parser.py — 23 parsers
+├── frameworks/           # mythos.py — 53-control catalog (ControlSpec)
+├── parsers/              # racf_parser.py — 24 parsers
 ├── recon/                # engine + backends (authorization-gated MYT-R02)
 ├── reporters/            # json, html, pdf, excel, questionnaire_{json,excel}
 ├── data/                 # cve_map.json (offline CVE map for MYT-V02)

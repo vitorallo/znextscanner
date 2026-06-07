@@ -1,0 +1,33 @@
+CLASS      NAME
+-----      ----
+EJBROLE    IZUDFLT.ZOSMF.IZUUSER  (G)
+
+LEVEL  OWNER    UNIVERSAL ACCESS  YOUR ACCESS  WARNING
+-----  -------- ----------------  -----------  -------
+ 00    IZUSVR        NONE             READ         NO
+
+   USER      ACCESS   ACCESS COUNT
+   ----      ------   ------------
+   IZUUSERG  READ          000000
+   SYS1      READ          000000
+
+EJBROLE    IZUDFLT.ZOSMF.IZUADMIN  (G)
+
+LEVEL  OWNER    UNIVERSAL ACCESS  YOUR ACCESS  WARNING
+-----  -------- ----------------  -----------  -------
+ 00    IZUSVR        NONE             READ         NO
+
+   USER      ACCESS   ACCESS COUNT
+   ----      ------   ------------
+   IZUADMNG  READ          000000
+   IBMUSER   READ          000000
+
+EJBROLE    IZUDFLT.ZOSMF.IZUSECADMIN  (G)
+
+LEVEL  OWNER    UNIVERSAL ACCESS  YOUR ACCESS  WARNING
+-----  -------- ----------------  -----------  -------
+ 00    IZUSVR        NONE             READ         NO
+
+   USER      ACCESS   ACCESS COUNT
+   ----      ------   ------------
+   IBMUSER   READ          000000
