@@ -202,6 +202,16 @@ questionnaire-by-design. Composite controls (C04/C05/C07/C09/C13) and the catalo
 controls (C15/X10/X11) bind multiple existing checks. Bucket-3 legacy ransomware-readiness
 checks deliberately not migrated: EXT-003/005/011/012, MON-001.
 
+**Field validation (z/OS 3.1 baseline, 2026-06-07).** On a default-configured system the
+modern REST/dev plane is *exposed and under-logged out of the box*: z/OSMF (:10443), z/OS
+Connect (:9443) and SSH (:22) all listen on `0.0.0.0`; SMF type 119 (z/OSMF/IP REST
+activity) is **not** recorded although type 80 (RACF) is; and MFADEF is inactive
+(password-only). So M9-class developer-plane compromise is **high-exploitability and
+low-observability by default** — the empirical basis for MYT-C16 (exposure), MYT-X12
+(REST access logging) and MYT-C17 (MFA/least-privilege), and a reinforcing factor for
+M7 (anti-forensics, given the SMF-119 blind spot). Scope note: observed on the single
+z/OS 3.1 validation system, not a claim about every estate.
+
 ## 7. Scriptable vs. Questionnaire
 
 - **Scanner / Hybrid** controls run on z/OS (or externally for R02) and pre-fill results.
