@@ -7,14 +7,18 @@ import pytest
 from znextscan.parsers.racf_parser import (
     parse_apf_list,
     parse_apf_profiles,
+    parse_general_resource_access,
+    parse_icsf_cards,
     parse_icsf_status,
     parse_listuser,
+    parse_netstat_conn,
     parse_program_control,
     parse_search_output,
     parse_setropts_audit,
     parse_setropts_extended,
     parse_setropts_password,
     parse_smf_status,
+    parse_sms_storage_groups,
     parse_started_tasks,
 )
 
@@ -262,7 +266,7 @@ class TestV1R13Parsers:
         assert len(users) == 3
 
     def test_setropts_password_masked(self) -> None:
-        output = (V1R13_DIR / "SETROPTS-LIST.txt").read_text()
+        output = (V1R13_DIR / "IAM-002-SETROPTS-LIST.txt").read_text()
         config = parse_setropts_password(output)
         assert config["encryption_algorithm"] == "MASKED"
         assert config["min_length"] == 6
@@ -274,41 +278,41 @@ class TestV1R13Parsers:
         assert config["inactive_revoke_days"] == 60
 
     def test_setropts_audit(self) -> None:
-        output = (V1R13_DIR / "SETROPTS-LIST.txt").read_text()
+        output = (V1R13_DIR / "IAM-002-SETROPTS-LIST.txt").read_text()
         config = parse_setropts_audit(output)
         assert config["audit_active"] is True
         assert config["saudit"] is True
         assert config["log_logon_failures"] is True
 
     def test_setropts_extended(self) -> None:
-        output = (V1R13_DIR / "SETROPTS-LIST.txt").read_text()
+        output = (V1R13_DIR / "IAM-002-SETROPTS-LIST.txt").read_text()
         config = parse_setropts_extended(output)
         assert config["operaudit"] is True
         assert config["protectall"] is True
         assert config["erase"] is True
 
     def test_program_control(self) -> None:
-        output = (V1R13_DIR / "SETROPTS-LIST.txt").read_text()
+        output = (V1R13_DIR / "IAM-002-SETROPTS-LIST.txt").read_text()
         config = parse_program_control(output)
         assert config["when_program"] is True
         assert config["program_class_active"] is True
 
     def test_apf_list(self) -> None:
-        output = (V1R13_DIR / "APF-LIST.txt").read_text()
+        output = (V1R13_DIR / "ID-003-APF-LIST.txt").read_text()
         libs = parse_apf_list(output)
         assert len(libs) == 8
         assert libs[0]["dsname"] == "SYS1.LINKLIB"
         assert libs[0]["volume"] == "SYSRES"
 
     def test_listuser(self) -> None:
-        output = (V1R13_DIR / "LISTUSER-IBMUSER.txt").read_text()
+        output = (V1R13_DIR / "IAM-003-LISTUSER-IBMUSER.txt").read_text()
         user = parse_listuser(output)
         assert user["userid"] == "IBMUSER"
         assert "SPECIAL" in user["attributes"]
         assert user["default_group"] == "SYS1"
 
     def test_smf_status(self) -> None:
-        output = (V1R13_DIR / "SMF-STATUS.txt").read_text()
+        output = (V1R13_DIR / "MON-001-SMF-STATUS.txt").read_text()
         config = parse_smf_status(output)
         assert config["active"] is True
         assert config["has_type_30"] is True
@@ -317,3 +321,34 @@ class TestV1R13Parsers:
         assert config["parmlib_member"] == "SMFPRM00"
         # V1R13 may not have RECORDING(LOGSTREAM)
         assert config["recording_method"] is None
+
+
+class TestV1R13ParsersExpanded:
+    """Version-specific V1R13 output: ICSF absent, old NETSTAT header, class-absent texts."""
+
+    def test_icsf_not_active(self) -> None:
+        output = (V1R13_DIR / "ENC-002-ICSF-LIST.txt").read_text()
+        assert parse_icsf_status(output)["active"] is False
+
+    def test_icsf_cards_not_active(self) -> None:
+        output = (V1R13_DIR / "ENC-005-ICSF-CARDS.txt").read_text()
+        config = parse_icsf_cards(output)
+        assert config["active"] is False
+        assert config["cards"] == []
+
+    def test_netstat_old_header(self) -> None:
+        output = (V1R13_DIR / "EXT-001-NETSTAT-CONN.txt").read_text()
+        conns = parse_netstat_conn(output)
+        # 'Listen' (mixed case) entries on the V1R13 'CS V1R13' header are still parsed.
+        assert any(c["port"] == "21" for c in conns)
+
+    def test_sms_pool_only_no_copy(self) -> None:
+        output = (V1R13_DIR / "EXT-BCK-SMS-SG.txt").read_text()
+        groups = parse_sms_storage_groups(output)
+        assert groups  # at least one POOL storage group
+        assert all(g["type"] != "COPY" for g in groups)
+
+    def test_ejbrole_nothing_to_list(self) -> None:
+        # Old RACF without populated EJBROLE returns ICH13003I -> no profiles parsed.
+        output = (V1R13_DIR / "MYT-R10-EJBROLE.txt").read_text()
+        assert parse_general_resource_access(output, "EJBROLE") == []

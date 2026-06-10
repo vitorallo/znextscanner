@@ -234,6 +234,7 @@ def write_excel_report(scan: ScanResult, output_path: str | Path) -> Path:
 
     # Summary sheet
     ws = wb.active
+    assert ws is not None  # a new workbook always has an active sheet
     ws.title = "Summary"
     _build_summary(ws, meta, summary)
 

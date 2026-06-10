@@ -70,15 +70,16 @@ znextscan/
 ├── config.py             # Pydantic config (connection, scan profile, recon, output)
 ├── scanner.py            # Orchestrator: PROFILES, get_registry, run_scan, ScanResult
 ├── logging.py
-├── connections/          # base, zosmf, ssh, hybrid, mock, factory
-├── checks/               # base_check + id/iam/mon/enc/sci/ext + mythos_checks
+├── connections/          # base, zosmf, ssh, hybrid, mock, factory, caching (per-scan memo)
+├── checks/               # base_check + _patterns + id/iam/mon/enc/sci/ext + mythos_checks
 ├── frameworks/           # mythos.py — 53-control catalog (ControlSpec)
 ├── parsers/              # racf_parser.py — 24 parsers
 ├── recon/                # engine + backends (authorization-gated MYT-R02)
 ├── reporters/            # json, html, pdf, excel, questionnaire_{json,excel}
 ├── data/                 # cve_map.json (offline CVE map for MYT-V02)
-└── utils/                # evidence (ZIP + redaction), errors, retry
+└── utils/                # evidence (ZIP + redaction), errors, retry, versions
 
-tests/                    # 15 modules; fixtures/ + fixtures/real_zos + fixtures/v1r13
+tests/                    # incl. compat_matrix + parser_robustness + live_zos (opt-in);
+                          # fixtures/ + fixtures/real_zos + fixtures/v1r13
 docs/                     # these guides
 ```

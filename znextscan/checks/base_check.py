@@ -3,10 +3,13 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Callable, Optional
+
+import structlog
 
 from znextscan.connections.base import BaseConnection, CommandNotSupportedError
-from znextscan.utils.errors import RACFPermissionError
+
+log = structlog.get_logger()
 
 
 class CheckStatus(str, Enum):
@@ -74,6 +77,20 @@ class BaseCheck(ABC):
         """Evaluate parsed data against security criteria."""
         ...
 
+    def _optional(self, fn: Callable[..., str], *args: Any) -> str:
+        """Run an optional *enrichment* command, returning '' on any failure.
+
+        Use this only for secondary commands that enrich a check's findings — never
+        for a check's primary command. It guarantees an enrichment that is
+        unavailable (downlevel z/OS, missing class, auth) degrades silently instead
+        of turning the whole check into an Error.
+        """
+        try:
+            return fn(*args)
+        except Exception as e:  # noqa: BLE001 — enrichment must never fail the check
+            log.debug("enrichment_unavailable", check=self.control_id, error=str(e))
+            return ""
+
     def run(self, connection: BaseConnection) -> CheckResult:
         """Execute the full check lifecycle: execute -> parse -> evaluate."""
         try:
@@ -89,13 +106,16 @@ class BaseCheck(ABC):
                 status=CheckStatus.SKIPPED,
                 findings=[str(e)],
             )
-        except RACFPermissionError as e:
+        except PermissionError as e:
+            # RACFPermissionError (TSO ICH408I) and a plain PermissionError (z/OSMF
+            # console HTTP 403 / OPERCMDS) both mean "not authorized" — degrade to
+            # Skipped with guidance, never Error.
             return CheckResult(
                 control_id=self.control_id,
                 control_name=self.control_name,
                 status=CheckStatus.SKIPPED,
                 findings=[str(e)],
-                error=f"Permission denied: {e.command}",
+                error=f"Permission denied: {getattr(e, 'command', None) or str(e)}",
             )
         except TimeoutError as e:
             return CheckResult(

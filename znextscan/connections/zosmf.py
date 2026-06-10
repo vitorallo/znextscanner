@@ -21,6 +21,11 @@ import structlog
 
 from znextscan.connections.base import BaseConnection, CommandNotSupportedError
 from znextscan.utils.errors import check_racf_errors
+from znextscan.utils.retry import retry_on_transient
+
+# Transient z/OSMF failures worth retrying. CommandNotSupportedError / PermissionError
+# are deliberately excluded — they are not transient and must propagate immediately.
+_TRANSIENT = (TimeoutError, httpx.TransportError)
 
 log = structlog.get_logger()
 
@@ -36,6 +41,8 @@ TSO_NOISE_PREFIXES = (
 class ZOSMFConnection(BaseConnection):
     """z/OSMF REST API connection."""
 
+    is_throttled = True
+
     def __init__(
         self,
         host: str,
@@ -45,9 +52,12 @@ class ZOSMFConnection(BaseConnection):
         verify_ssl: bool = False,
         timeout: int = 60,
         base_path: str = "/zosmf",
+        retries: int = 2,
+        host_header: str | None = None,
     ) -> None:
         self.base_url = f"https://{host}:{port}{base_path}"
         self.timeout = timeout
+        self.retries = retries
 
         auth_bytes = f"{username}:{password}".encode()
         auth_b64 = base64.b64encode(auth_bytes).decode()
@@ -56,6 +66,10 @@ class ZOSMFConnection(BaseConnection):
             "Authorization": f"Basic {auth_b64}",
             "X-CSRF-ZOSMF-HEADER": "*",
         }
+        # Override the Host header when connecting by IP behind a VIP/proxy, or for
+        # the Hercules lab where httpx cannot resolve the mDNS .local name.
+        if host_header:
+            self.headers["Host"] = host_header
 
         self.client = httpx.Client(
             base_url=self.base_url,
@@ -82,12 +96,19 @@ class ZOSMFConnection(BaseConnection):
                 "rsize": "50000",
             },
         )
+        if resp.status_code == 404:
+            # The TSO/E REST API arrived in z/OSMF V2R1; older z/OSMF (V1R13) has
+            # no /tsoApp servlet. Degrade to Skipped instead of erroring.
+            raise CommandNotSupportedError(
+                "z/OSMF TSO/E REST API not available (HTTP 404) — requires z/OSMF "
+                "V2R1+; use --method ssh for TSO/RACF commands on this system"
+            )
         resp.raise_for_status()
         data = resp.json()
         key = data.get("servletKey")
         if not key:
             raise ConnectionError(f"Failed to start TSO session: {data}")
-        return key
+        return str(key)
 
     def _tso_delete(self, key: str) -> None:
         """Delete a TSO session."""
@@ -104,7 +125,8 @@ class ZOSMFConnection(BaseConnection):
             headers={**self.headers, "Content-Type": "application/json"},
         )
         resp.raise_for_status()
-        return resp.json()
+        data: dict[str, Any] = resp.json()
+        return data
 
     def _tso_receive(self, key: str) -> dict[str, Any] | None:
         """Poll for pending TSO output. Returns None if unavailable."""
@@ -117,7 +139,8 @@ class ZOSMFConnection(BaseConnection):
         if not resp.content:
             return None
         try:
-            return resp.json()
+            received: dict[str, Any] = resp.json()
+            return received
         except Exception:
             return None
 
@@ -147,6 +170,13 @@ class ZOSMFConnection(BaseConnection):
     # ---- TSO command execution ----
 
     def execute_tso_command(self, command: str) -> str:
+        """Execute a TSO/RACF command, retrying transient failures."""
+        runner = retry_on_transient(
+            max_retries=self.retries, base_delay=2.0, transient_exceptions=_TRANSIENT
+        )(self._tso_once)
+        return runner(command)
+
+    def _tso_once(self, command: str) -> str:
         """Execute a TSO/RACF command using a fresh session.
 
         Each command gets its own TSO session to avoid prompt-cycling issues
@@ -158,7 +188,12 @@ class ZOSMFConnection(BaseConnection):
         """
         log.debug("tso_command", command=command)
 
-        key = self._tso_start()
+        try:
+            key = self._tso_start()
+        except httpx.TimeoutException as e:
+            raise TimeoutError(
+                f"TSO session start for '{command}' timed out after {self.timeout}s"
+            ) from e
         try:
             # Step 1: consume READY prompt from logon
             self._tso_send(key, "")
@@ -189,6 +224,8 @@ class ZOSMFConnection(BaseConnection):
                 # No READY yet — poll for completion
                 self._poll_output(key, all_lines)
 
+        except httpx.TimeoutException as e:
+            raise TimeoutError(f"TSO command '{command}' timed out after {self.timeout}s") from e
         finally:
             self._tso_delete(key)
 
@@ -219,6 +256,13 @@ class ZOSMFConnection(BaseConnection):
     # ---- Console API ----
 
     def execute_console_command(self, command: str) -> str:
+        """Execute an MVS console command, retrying transient failures."""
+        runner = retry_on_transient(
+            max_retries=self.retries, base_delay=2.0, transient_exceptions=_TRANSIENT
+        )(self._console_once)
+        return runner(command)
+
+    def _console_once(self, command: str) -> str:
         """Execute an MVS console command via z/OSMF Console API."""
         log.debug("console_command", command=command)
 
@@ -249,7 +293,7 @@ class ZOSMFConnection(BaseConnection):
         resp.raise_for_status()
         data = resp.json()
 
-        raw_output = data.get("cmd-response", "")
+        raw_output: str = data.get("cmd-response", "")
         output = raw_output.replace("\r ", "\n").replace("\r", "\n")
 
         log.debug("console_output", command=command, output_length=len(output))
@@ -271,4 +315,12 @@ class ZOSMFConnection(BaseConnection):
         """Test connectivity by calling /zosmf/info. Returns system info."""
         resp = self.client.get("/info")
         resp.raise_for_status()
-        return resp.json()
+        info: dict[str, Any] = resp.json()
+        return info
+
+    def system_info(self) -> dict[str, Any]:
+        """Best-effort ``/zosmf/info`` (zos_version, …); ``{}`` on any failure."""
+        try:
+            return self.test_connection()
+        except Exception:
+            return {}

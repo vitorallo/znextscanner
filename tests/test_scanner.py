@@ -4,6 +4,8 @@ import json
 import zipfile
 from pathlib import Path
 
+import pytest
+
 from znextscan.checks.base_check import CheckStatus
 from znextscan.config import ScannerConfig
 from znextscan.connections.mock import MockConnection
@@ -161,6 +163,7 @@ class TestEvidence:
 class TestCLIScan:
     def test_mock_scan(self) -> None:
         from click.testing import CliRunner
+
         from znextscan.cli import cli
 
         runner = CliRunner()
@@ -174,6 +177,7 @@ class TestCLIScan:
 
     def test_mock_scan_with_evidence(self) -> None:
         from click.testing import CliRunner
+
         from znextscan.cli import cli
 
         runner = CliRunner()
@@ -185,6 +189,7 @@ class TestCLIScan:
 
     def test_mock_scan_with_html(self) -> None:
         from click.testing import CliRunner
+
         from znextscan.cli import cli
 
         runner = CliRunner()
@@ -257,6 +262,7 @@ class TestHTMLReporter:
 
 class TestPDFReporter:
     def test_write_pdf(self, tmp_path: Path) -> None:
+        pytest.importorskip("weasyprint")
         from znextscan.reporters.pdf_reporter import write_pdf_report
 
         config = ScannerConfig()
@@ -266,3 +272,40 @@ class TestPDFReporter:
         assert path.stat().st_size > 10000
         # PDF magic bytes
         assert path.read_bytes()[:4] == b"%PDF"
+
+
+class TestZosVersionMetadata:
+    def test_zos_version_in_metadata(self) -> None:
+        class InfoConn(MockConnection):
+            def system_info(self) -> dict:
+                return {"zos_version": "03.01.00"}
+
+        cfg = ScannerConfig(scan={"checks": ["IAM-002"]})
+        scan = run_scan(InfoConn(FIXTURE_DIR), cfg)
+        assert scan.zos_version == "03.01.00"
+        assert scan.to_dict()["scan_metadata"]["zos_version"] == "03.01.00"
+
+    def test_system_info_failure_tolerated(self) -> None:
+        class BadConn(MockConnection):
+            def system_info(self) -> dict:
+                raise RuntimeError("info endpoint down")
+
+        cfg = ScannerConfig(scan={"checks": ["IAM-002"]})
+        scan = run_scan(BadConn(FIXTURE_DIR), cfg)  # must not raise
+        assert scan.zos_version is None
+        assert len(scan.results) == 1
+
+    def test_skip_annotated_with_version(self) -> None:
+        class InfoConn(MockConnection):
+            def system_info(self) -> dict:
+                return {"zos_version": "01.13.00"}
+
+            def execute_console_command(self, command: str) -> str:
+                from znextscan.connections.base import CommandNotSupportedError
+
+                raise CommandNotSupportedError("Console API not available")
+
+        cfg = ScannerConfig(scan={"checks": ["ID-003"]})  # console-based -> Skipped
+        scan = run_scan(InfoConn(FIXTURE_DIR), cfg)
+        assert scan.results[0].status is CheckStatus.SKIPPED
+        assert any("01.13.00" in f for f in scan.results[0].findings)

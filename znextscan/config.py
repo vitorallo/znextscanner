@@ -28,8 +28,10 @@ class ConnectionConfig(BaseModel):
     password: Optional[str] = None
     verify_ssl: bool = False
     timeout: int = 60
+    retries: int = 2  # transient-failure retries per command (0 disables)
     # z/OSMF specific
     zosmf_base_path: str = "/zosmf"
+    host_header: Optional[str] = None  # override Host header (IP+VIP/proxy, mDNS .local)
     # SSH specific
     ssh_key_file: Optional[str] = None
     # Mock specific

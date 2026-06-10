@@ -29,7 +29,8 @@ def write_json_report(scan: ScanResult, output_path: str | Path) -> Path:
 
 def load_json_report(path: str | Path) -> dict[str, Any]:
     """Load and parse a JSON report file."""
-    return json.loads(Path(path).read_text())
+    data: dict[str, Any] = json.loads(Path(path).read_text())
+    return data
 
 
 def validate_report(report: dict[str, Any]) -> list[str]:

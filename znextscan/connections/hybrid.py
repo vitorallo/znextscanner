@@ -17,6 +17,8 @@ log = structlog.get_logger()
 class HybridConnection(BaseConnection):
     """z/OSMF Console + SSH TSO hybrid connection."""
 
+    is_throttled = True
+
     def __init__(self, zosmf: ZOSMFConnection, ssh: SSHConnection) -> None:
         self.zosmf = zosmf
         self.ssh = ssh
@@ -40,3 +42,6 @@ class HybridConnection(BaseConnection):
     def test_connection(self) -> dict:
         """Test both connections."""
         return self.zosmf.test_connection()
+
+    def system_info(self) -> dict:
+        return self.zosmf.system_info()

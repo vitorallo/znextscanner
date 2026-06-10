@@ -29,7 +29,7 @@ def create_connection(config: ConnectionConfig) -> BaseConnection:
                 "z/OSMF password required — set in config, MRRA_PASSWORD env var, "
                 "or use interactive mode"
             )
-        conn = ZOSMFConnection(
+        conn: BaseConnection = ZOSMFConnection(
             host=config.host or "localhost",
             port=config.effective_port,
             username=config.username or "IBMUSER",
@@ -37,6 +37,8 @@ def create_connection(config: ConnectionConfig) -> BaseConnection:
             verify_ssl=config.verify_ssl,
             timeout=config.timeout,
             base_path=config.zosmf_base_path,
+            retries=config.retries,
+            host_header=config.host_header,
         )
         log.info("connection_created", method="zosmf", host=config.host, port=config.port)
         return conn
@@ -51,6 +53,7 @@ def create_connection(config: ConnectionConfig) -> BaseConnection:
             password=config.password,
             key_filename=config.ssh_key_file,
             timeout=config.timeout,
+            retries=config.retries,
         )
         log.info("connection_created", method="ssh", host=config.host, port=config.port)
         return conn
@@ -73,6 +76,7 @@ def create_connection(config: ConnectionConfig) -> BaseConnection:
                 password=config.password,
                 key_filename=config.ssh_key_file,
                 timeout=config.timeout,
+                retries=config.retries,
             )
         except Exception as e:
             raise ConnectionError(
@@ -88,6 +92,8 @@ def create_connection(config: ConnectionConfig) -> BaseConnection:
             verify_ssl=config.verify_ssl,
             timeout=config.timeout,
             base_path=config.zosmf_base_path,
+            retries=config.retries,
+            host_header=config.host_header,
         )
         log.info("connection_created", method="hybrid", host=host)
         return HybridConnection(zosmf, ssh)

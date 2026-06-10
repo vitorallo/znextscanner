@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from znextscan.connections.base import BaseConnection
+from znextscan.connections.base import BaseConnection, CommandNotSupportedError
 
 # Maps command prefix -> fixture filename
 FIXTURE_MAP: dict[str, str] = {
@@ -63,9 +63,14 @@ class MockConnection(BaseConnection):
                 fixture_path = self.fixture_dir / filename
                 if fixture_path.exists():
                     return fixture_path.read_text()
-                raise FileNotFoundError(f"Fixture file not found: {fixture_path}")
+                # A mapped command with no fixture in this dir simulates a facility
+                # that is absent on the target z/OS level (e.g. a downlevel system) —
+                # degrade to Skipped, exactly like a real CommandNotSupportedError.
+                raise CommandNotSupportedError(
+                    f"Fixture not present: {fixture_path.name} (simulates facility absent)"
+                )
 
-        raise ValueError(f"No fixture mapping for command: {command}")
+        raise CommandNotSupportedError(f"No fixture mapping for command: {command}")
 
     def execute_tso_command(self, command: str) -> str:
         return self._resolve_fixture(command, FIXTURE_MAP)

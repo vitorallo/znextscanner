@@ -1,0 +1,19 @@
+CLASS      NAME
+-----      ----
+APPL       OMVSAPPL (G)
+
+LEVEL  OWNER      UNIVERSAL ACCESS  YOUR ACCESS  WARNING
+-----  --------   ----------------  -----------  -------
+ 00    IBMUSER    NONE              READ         NO
+
+APPL       IZUDFLT
+
+LEVEL  OWNER      UNIVERSAL ACCESS  YOUR ACCESS  WARNING
+-----  --------   ----------------  -----------  -------
+ 00    IBMUSER    READ              READ         NO
+
+APPL       TSO
+
+LEVEL  OWNER      UNIVERSAL ACCESS  YOUR ACCESS  WARNING
+-----  --------   ----------------  -----------  -------
+ 00    IBMUSER    NONE              READ         NO

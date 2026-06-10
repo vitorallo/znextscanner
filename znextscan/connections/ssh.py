@@ -15,12 +15,18 @@ import structlog
 
 from znextscan.connections.base import BaseConnection, CommandNotSupportedError
 from znextscan.utils.errors import check_racf_errors
+from znextscan.utils.retry import retry_on_transient
 
 log = structlog.get_logger()
+
+# Transient SSH failures worth retrying (CommandNotSupportedError is not transient).
+_TRANSIENT = (TimeoutError, socket.timeout, paramiko.SSHException, EOFError)
 
 
 class SSHConnection(BaseConnection):
     """SSH connection to z/OS."""
+
+    is_throttled = True
 
     def __init__(
         self,
@@ -30,10 +36,12 @@ class SSHConnection(BaseConnection):
         password: str | None = None,
         key_filename: str | None = None,
         timeout: int = 60,
+        retries: int = 2,
     ) -> None:
         self.host = host
         self.port = port
         self.timeout = timeout
+        self.retries = retries
 
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -56,7 +64,13 @@ class SSHConnection(BaseConnection):
         log.info("ssh_connected", host=host)
 
     def execute_tso_command(self, command: str) -> str:
-        """Execute a TSO/RACF command via tsocmd."""
+        """Execute a TSO/RACF command via tsocmd, retrying transient failures."""
+        runner = retry_on_transient(
+            max_retries=self.retries, base_delay=2.0, transient_exceptions=_TRANSIENT
+        )(self._tso_once)
+        return runner(command)
+
+    def _tso_once(self, command: str) -> str:
         ssh_cmd = f'tsocmd "{command}"'
         log.debug("ssh_tso_command", command=command)
 
@@ -100,6 +114,13 @@ class SSHConnection(BaseConnection):
         return output
 
     def execute_uss_command(self, command: str) -> str:
+        """Execute a USS command via /bin/sh, retrying transient failures."""
+        runner = retry_on_transient(
+            max_retries=self.retries, base_delay=2.0, transient_exceptions=_TRANSIENT
+        )(self._uss_once)
+        return runner(command)
+
+    def _uss_once(self, command: str) -> str:
         """Execute a USS command via /bin/sh (portable across login shells)."""
         log.debug("ssh_uss_command", command=command)
 

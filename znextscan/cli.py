@@ -347,8 +347,10 @@ def test_connection(
             conn.password = click.prompt("Password", hide_input=True)
         try:
             from znextscan.connections.factory import create_connection
+            from znextscan.connections.zosmf import ZOSMFConnection
 
             c = create_connection(conn)
+            assert isinstance(c, ZOSMFConnection)  # zosmf branch returns ZOSMFConnection
             info = c.test_connection()
             click.echo(f"z/OS:   {info.get('zos_version', '?')}")
             click.echo(f"z/OSMF: {info.get('zosmf_full_version', '?')}")

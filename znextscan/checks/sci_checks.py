@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from znextscan.checks._patterns import join_sections, split_sections
 from znextscan.checks.base_check import BaseCheck, CheckResult, CheckStatus
 from znextscan.connections.base import BaseConnection
 from znextscan.parsers.racf_parser import (
@@ -22,15 +23,12 @@ class APFIntegrityCheck(BaseCheck):
     def execute(self, connection: BaseConnection) -> str:
         apf_output = connection.execute_console_command("D PROG,APF")
         profile_output = connection.execute_tso_command("RLIST DATASET SYS1")
-        return f"---APF---\n{apf_output}\n---PROFILES---\n{profile_output}"
+        return join_sections([("APF", apf_output), ("PROFILES", profile_output)])
 
     def parse(self, output: str) -> dict[str, Any]:
-        parts = output.split("---PROFILES---")
-        apf_section = parts[0].replace("---APF---", "").strip()
-        profile_section = parts[1].strip() if len(parts) > 1 else ""
-
-        libraries = parse_apf_list(apf_section)
-        profiles = parse_apf_profiles(profile_section)
+        sections = split_sections(output, ["APF", "PROFILES"])
+        libraries = parse_apf_list(sections["APF"])
+        profiles = parse_apf_profiles(sections["PROFILES"])
 
         return {"libraries": libraries, "profiles": profiles}
 

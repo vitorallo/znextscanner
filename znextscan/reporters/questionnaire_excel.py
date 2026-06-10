@@ -48,6 +48,7 @@ _COLUMNS = [
 def write_questionnaire_excel(questionnaire: dict[str, Any], path: str | Path) -> Path:
     wb = Workbook()
     ws0 = wb.active
+    assert ws0 is not None  # a new workbook always has an active sheet
     ws0.title = "Instructions"
     ws0.column_dimensions["A"].width = 100
     ws0["A1"] = "zNextScan — Mythos Assessment Questionnaire"

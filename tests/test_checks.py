@@ -405,6 +405,16 @@ class TestUSSListenersCheck:
         assert result.data["count"] >= 5
         assert result.status == CheckStatus.PASS
 
+    def test_uppercase_listen_state_counted(self) -> None:
+        # Console-style netstat reports the state as "LISTEN" (uppercase).
+        check = USSListenersCheck()
+        out = (
+            "USER ID  CONN     LOCAL SOCKET           FOREIGN SOCKET         STATE\n"
+            "FTPD1    0000000C 0.0.0.0..21            0.0.0.0..0             LISTEN\n"
+        )
+        data = check.parse(out)
+        assert data["count"] == 1
+
 
 # ---- Tier 2 checks (EXT-012 to EXT-015) ----
 
@@ -528,6 +538,26 @@ class TestRACFDatabaseProtectionCheck:
         check = RACFDatabaseProtectionCheck()
         result = check.run(make_conn())
         assert result.control_id == "EXT-024"
+
+    def test_skips_when_tso_unavailable(self) -> None:
+        from znextscan.connections.base import BaseConnection, CommandNotSupportedError
+
+        class NoTSO(BaseConnection):
+            def execute_tso_command(self, command: str) -> str:
+                raise CommandNotSupportedError("TSO/E REST API not available")
+
+            def execute_console_command(self, command: str) -> str:
+                return ""
+
+            def execute_uss_command(self, command: str) -> str:
+                return ""
+
+            def close(self) -> None:
+                pass
+
+        result = RACFDatabaseProtectionCheck().run(NoTSO())
+        assert result.status == CheckStatus.SKIPPED
+        assert result.error is None
 
     def test_open_uacc(self) -> None:
         check = RACFDatabaseProtectionCheck()

@@ -107,6 +107,20 @@ class TestConsoleCommand:
         conn.close()
 
 
+class TestTSOCommandDegradation:
+    def test_tso_api_404_maps_to_unsupported(self) -> None:
+        # z/OSMF without the TSO/E REST API (pre-V2R1) returns 404 from /tsoApp/tso.
+        conn = ZOSMFConnection(host="zos.example.com", password="test")
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        conn.client = MagicMock()
+        conn.client.post.return_value = mock_response
+
+        with pytest.raises(CommandNotSupportedError, match="TSO/E REST API not available"):
+            conn.execute_tso_command("LISTUSER IBMUSER")
+        conn.close()
+
+
 class TestUSSCommand:
     def test_uss_raises_not_supported(self) -> None:
         conn = ZOSMFConnection(host="zos.example.com", password="test")
@@ -123,3 +137,52 @@ class TestConnectionLifecycle:
     def test_context_manager(self) -> None:
         with ZOSMFConnection(host="zos.example.com", password="test") as conn:
             assert conn.base_url == "https://zos.example.com:443/zosmf"
+
+
+class TestRetry:
+    def test_tso_retries_transient(self, monkeypatch) -> None:
+        import znextscan.utils.retry as retry_mod
+
+        monkeypatch.setattr(retry_mod.time, "sleep", lambda *_: None)
+        conn = ZOSMFConnection(host="h", password="x", retries=2)
+        calls = {"n": 0}
+
+        def flaky(command: str) -> str:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise TimeoutError("transient")
+            return "OK"
+
+        conn._tso_once = flaky  # type: ignore[method-assign]
+        assert conn.execute_tso_command("LISTUSER IBMUSER") == "OK"
+        assert calls["n"] == 2
+        conn.close()
+
+    def test_permission_error_not_retried(self, monkeypatch) -> None:
+        import znextscan.utils.retry as retry_mod
+
+        monkeypatch.setattr(retry_mod.time, "sleep", lambda *_: None)
+        conn = ZOSMFConnection(host="h", password="x", retries=3)
+        calls = {"n": 0}
+
+        def denied(command: str) -> str:
+            calls["n"] += 1
+            raise PermissionError("403")
+
+        conn._console_once = denied  # type: ignore[method-assign]
+        with pytest.raises(PermissionError):
+            conn.execute_console_command("D A,L")
+        assert calls["n"] == 1
+        conn.close()
+
+
+class TestHostHeader:
+    def test_host_header_sets_header(self) -> None:
+        conn = ZOSMFConnection(host="127.0.0.1", password="x", host_header="MACHINE.local")
+        assert conn.headers.get("Host") == "MACHINE.local"
+        conn.close()
+
+    def test_no_host_header_by_default(self) -> None:
+        conn = ZOSMFConnection(host="zos.example.com", password="x")
+        assert "Host" not in conn.headers
+        conn.close()

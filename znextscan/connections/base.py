@@ -1,6 +1,7 @@
 """Abstract base connection class for z/OS systems."""
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 
 class CommandNotSupportedError(Exception):
@@ -14,6 +15,10 @@ class CommandNotSupportedError(Exception):
 
 class BaseConnection(ABC):
     """Abstract connection to a z/OS system."""
+
+    # True for live connections that talk to a real (slow) z/OS, so the scanner
+    # paces itself between checks. False for in-memory connections (Mock).
+    is_throttled: bool = False
 
     @abstractmethod
     def execute_tso_command(self, command: str) -> str:
@@ -34,6 +39,10 @@ class BaseConnection(ABC):
     def close(self) -> None:
         """Close the connection and clean up resources."""
         ...
+
+    def system_info(self) -> dict[str, Any]:
+        """Best-effort target metadata (e.g. ``zos_version``); ``{}`` if unavailable."""
+        return {}
 
     def __enter__(self) -> "BaseConnection":
         return self

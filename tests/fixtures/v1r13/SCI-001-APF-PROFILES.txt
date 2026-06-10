@@ -1,0 +1,36 @@
+SEARCH CLASS(DATASET) FILTER(SYS1.LINKLIB)
+SYS1.LINKLIB
+
+RLIST DATASET SYS1.LINKLIB ALL
+CLASS      NAME                    UNIVERSAL ACCESS   WARNING
+------     ----                    ----------------   -------
+DATASET    SYS1.LINKLIB            NONE               NO
+  OWNER         IBMUSER
+  YOUR ACCESS   READ
+  AUDITING
+  ------------------
+    SUCCESS(READ)  FAILURE(READ)
+  NOTIFY
+  ------------------
+    NO USER TO BE NOTIFIED
+  ACCESS LIST
+  ------------------
+    IBMUSER       ALTER
+    SYS1          ALTER
+
+SEARCH CLASS(DATASET) FILTER(SYS1.LPALIB)
+SYS1.LPALIB
+
+RLIST DATASET SYS1.LPALIB ALL
+CLASS      NAME                    UNIVERSAL ACCESS   WARNING
+------     ----                    ----------------   -------
+DATASET    SYS1.LPALIB             NONE               NO
+  OWNER         IBMUSER
+  YOUR ACCESS   READ
+  AUDITING
+  ------------------
+    SUCCESS(READ)  FAILURE(READ)
+  ACCESS LIST
+  ------------------
+    IBMUSER       ALTER
+    SYS1          ALTER

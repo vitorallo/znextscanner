@@ -1,0 +1,9 @@
+ IGD002I 10.00.00 DISPLAY SMS 100
+STORGRP  TYPE    SYSTEM= 1
+SGBASE   POOL            +
+SGAPPL   POOL            +
+SGUSER   POOL            +
+***************************** LEGEND *****************************
+. THE STORAGE GROUP OR VOLUME IS NOT DEFINED TO THE SYSTEM
++ THE STORAGE GROUP OR VOLUME IS ENABLED
+SYSTEM 1 = VS01

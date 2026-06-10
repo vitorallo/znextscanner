@@ -123,3 +123,14 @@ class TestBaseCheck:
         assert result.status == CheckStatus.SKIPPED
         assert "V1R13" in result.findings[0]
         assert result.error is None
+
+    def test_plain_permission_error_skips(self) -> None:
+        # z/OSMF console HTTP 403 raises a plain PermissionError (not RACFPermissionError)
+        # — it must degrade to Skipped, never Error.
+        class ForbiddenConnection(StubConnection):
+            def execute_tso_command(self, command: str) -> str:
+                raise PermissionError("Not authorized for console command — needs OPERCMDS")
+
+        result = DummyCheck().run(ForbiddenConnection())
+        assert result.status == CheckStatus.SKIPPED
+        assert "OPERCMDS" in result.findings[0]

@@ -14,6 +14,8 @@ from typing import Any
 
 from znextscan.checks.base_check import BaseCheck, CheckResult, CheckStatus
 from znextscan.connections.base import BaseConnection, CommandNotSupportedError
+from znextscan.utils.versions import extract_java_version as _parse_java_version
+from znextscan.utils.versions import version_tuple as _version_tuple
 
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
@@ -21,14 +23,10 @@ _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 def _load_cve_map() -> dict[str, Any] | None:
     """Load the offline CVE map; return None if missing/malformed (→ Skipped)."""
     try:
-        return json.loads((_DATA_DIR / "cve_map.json").read_text())
+        data = json.loads((_DATA_DIR / "cve_map.json").read_text())
     except (OSError, ValueError):
         return None
-
-
-def _version_tuple(v: str) -> tuple[int, ...]:
-    parts = re.findall(r"\d+", v)
-    return tuple(int(p) for p in parts) if parts else (0,)
+    return data if isinstance(data, dict) else None
 
 
 _PROCLIB_DELIM = "@@PROCLIB@@"
@@ -73,10 +71,7 @@ class OperationalCodeSurfaceCheck(BaseCheck):
         listalc = connection.execute_tso_command("LISTA STATUS")
         # PROCLIB ($D, JES2) is optional enrichment — tolerate console-unavailable
         # or auth failures without failing the whole check.
-        try:
-            proclib = connection.execute_console_command("$D PROCLIB")
-        except Exception:
-            proclib = ""
+        proclib = self._optional(connection.execute_console_command, "$D PROCLIB")
         return f"{listalc}\n{_PROCLIB_DELIM}\n{proclib}"
 
     def parse(self, output: str) -> dict[str, Any]:
@@ -217,19 +212,6 @@ _JAVA_SWEEP_CMD = (
     '[ -n "$jb" ] && { echo "=== JRE: ${jb} ==="; "$jb" -version 2>&1; }; '
     "done"
 )
-
-
-def _parse_java_version(block: str) -> str | None:
-    """Extract a comparable 4-part version: IBM SR build (8.0.8.15) or
-    Semeru/OpenJDK quad (11.0.22.0); fall back to the 'version' string."""
-    build = re.search(r"build (\d+\.\d+\.\d+\.\d+)", block)
-    if build:
-        return build.group(1)
-    quad = re.search(r"\b(\d+\.\d+\.\d+\.\d+)\b", block)
-    if quad:
-        return quad.group(1)
-    ver = re.search(r'version "?([0-9][0-9._]+)', block)
-    return ver.group(1).replace("_", ".") if ver else None
 
 
 class CVEExposureCheck(BaseCheck):
@@ -505,7 +487,12 @@ class SourceExposureReconCheck(BaseCheck):
         )
 
     def parse(self, output: str) -> dict[str, Any]:
-        items = json.loads(output) if output else []
+        try:
+            items = json.loads(output) if output else []
+        except ValueError:
+            items = []
+        if not isinstance(items, list):
+            items = []
         return {"findings": items, "count": len(items)}
 
     def evaluate(self, data: dict[str, Any]) -> CheckResult:
@@ -552,10 +539,7 @@ class MFACoverageCheck(BaseCheck):
         setropts = connection.execute_tso_command("SETROPTS LIST")
         # RLIST MFADEF is optional enrichment — on older RACF the MFADEF class may
         # not be defined; tolerate a failure rather than erroring the whole check.
-        try:
-            mfadef = connection.execute_tso_command("RLIST MFADEF * ALL")
-        except Exception:
-            mfadef = ""
+        mfadef = self._optional(connection.execute_tso_command, "RLIST MFADEF * ALL")
         return f"{setropts}\n{_MFADEF_DELIM}\n{mfadef}"
 
     def parse(self, output: str) -> dict[str, Any]:
@@ -637,10 +621,7 @@ class APISurfaceCheck(BaseCheck):
         dal = connection.execute_console_command("D A,L")
         # Port enrichment is optional — tolerate auth/proc-name/console failures
         # so name-based detection from D A,L still returns a result.
-        try:
-            tcp = connection.execute_console_command("D TCPIP,,N,CONN")
-        except Exception:
-            tcp = ""
+        tcp = self._optional(connection.execute_console_command, "D TCPIP,,N,CONN")
         return f"{dal}\n{_TCPIP_DELIM}\n{tcp}"
 
     def parse(self, output: str) -> dict[str, Any]:
@@ -909,14 +890,8 @@ class DeveloperPlaneAccessCheck(BaseCheck):
         dal = connection.execute_console_command("D A,L")
         # Listener + role enrichment are optional — tolerate console/TSO/auth
         # failures so name-based detection from D A,L still returns a result.
-        try:
-            tcp = connection.execute_console_command("D TCPIP,,N,CONN")
-        except Exception:
-            tcp = ""
-        try:
-            roles = connection.execute_tso_command("RLIST EJBROLE * ALL")
-        except Exception:
-            roles = ""
+        tcp = self._optional(connection.execute_console_command, "D TCPIP,,N,CONN")
+        roles = self._optional(connection.execute_tso_command, "RLIST EJBROLE * ALL")
         return f"{dal}\n{_R10_TCP_DELIM}\n{tcp}\n{_R10_ROLE_DELIM}\n{roles}"
 
     def parse(self, output: str) -> dict[str, Any]:
@@ -1051,10 +1026,7 @@ class RESTAPIExposureCheck(BaseCheck):
 
     def execute(self, connection: BaseConnection) -> str:
         tcp = connection.execute_console_command("D TCPIP,,N,CONN")
-        try:
-            dal = connection.execute_console_command("D A,L")
-        except Exception:
-            dal = ""
+        dal = self._optional(connection.execute_console_command, "D A,L")
         return f"{tcp}\n{_C16_DELIM}\n{dal}"
 
     def parse(self, output: str) -> dict[str, Any]:

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.connection_variants import UnsupportedConnection as _UnsupportedConnection
 from znextscan.checks.base_check import CheckStatus
 from znextscan.checks.mythos_checks import (
     _C16_DELIM,
@@ -25,7 +26,6 @@ from znextscan.checks.mythos_checks import (
     USSComponentPatchCheck,
     USSHardeningCheck,
 )
-from znextscan.connections.base import BaseConnection, CommandNotSupportedError
 from znextscan.connections.mock import MockConnection
 
 FIXTURES = str(Path(__file__).parent / "fixtures")
@@ -35,20 +35,6 @@ REAL_DIR = Path(__file__).parent / "fixtures" / "real_zos"
 @pytest.fixture
 def conn() -> MockConnection:
     return MockConnection(FIXTURES)
-
-
-class _UnsupportedConnection(BaseConnection):
-    def execute_tso_command(self, command: str) -> str:
-        raise CommandNotSupportedError(f"unsupported: {command}")
-
-    def execute_console_command(self, command: str) -> str:
-        raise CommandNotSupportedError(f"unsupported: {command}")
-
-    def execute_uss_command(self, command: str) -> str:
-        raise CommandNotSupportedError(f"unsupported: {command}")
-
-    def close(self) -> None:
-        pass
 
 
 def test_r01_operational_code_surface(conn: MockConnection) -> None:

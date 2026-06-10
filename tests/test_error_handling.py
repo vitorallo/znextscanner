@@ -92,6 +92,24 @@ class TestCheckRacfErrors:
             assert "FACILITY" in str(e)
             assert e.command == "RLIST STARTED * ALL"
 
+    def test_ich10006i_not_active_is_informational(self) -> None:
+        # An inactive RACF class is a finding, not a permission problem — never raise.
+        output = "ICH10006I MFADEF CLASS NOT ACTIVE"
+        check_racf_errors(output, command="RLIST MFADEF * ALL")
+
+    @pytest.mark.parametrize(
+        "output",
+        [
+            "ICH13003I NOTHING TO LIST",
+            "ICH13004I NOTHING TO LIST",
+            "IKJ56712I INVALID KEYWORD, MFADEF",
+            "ICH10006I MFADEF CLASS NOT ACTIVE\nICH13004I NOTHING TO LIST",
+        ],
+    )
+    def test_class_absent_messages_do_not_raise(self, output: str) -> None:
+        # Old-RACF "class/profile absent" texts must not be mistaken for ICH408I auth denial.
+        check_racf_errors(output, command="RLIST EJBROLE * ALL")
+
 
 # ---- BaseCheck error handling ----
 

@@ -2,8 +2,14 @@
 
 from typing import Any
 
+from znextscan.checks._patterns import (
+    RlistUaccCheck,
+    SetroptsFlagCheck,
+    join_sections,
+    split_sections,
+)
 from znextscan.checks.base_check import BaseCheck, CheckResult, CheckStatus
-from znextscan.connections.base import BaseConnection
+from znextscan.connections.base import BaseConnection, CommandNotSupportedError
 from znextscan.parsers.racf_parser import (
     BACKUP_ADDRESS_SPACES,
     NOTABLE_PROCESSES,
@@ -15,15 +21,13 @@ from znextscan.parsers.racf_parser import (
     parse_listds_label,
     parse_netstat_conn,
     parse_ps_output,
-    parse_rlist_class,
     parse_setropts_extended,
     parse_sms_storage_groups,
-    parse_setropts_extended,
     parse_syslog_conf,
 )
 
 
-class OperauditCheck(BaseCheck):
+class OperauditCheck(SetroptsFlagCheck):
     """EXT-007: OPERAUDIT Status.
 
     OPERAUDIT tracks operator commands issued by users with OPERATIONS.
@@ -34,28 +38,9 @@ class OperauditCheck(BaseCheck):
     control_name = "OPERAUDIT Status"
     nist_function = "Detect"
     priority = "P2"
-
-    def execute(self, connection: BaseConnection) -> str:
-        return connection.execute_tso_command("SETROPTS LIST")
-
-    def parse(self, output: str) -> dict[str, Any]:
-        return parse_setropts_extended(output)
-
-    def evaluate(self, data: dict[str, Any]) -> CheckResult:
-        active = data.get("operaudit", False)
-        return CheckResult(
-            control_id=self.control_id,
-            control_name=self.control_name,
-            status=CheckStatus.PASS if active else CheckStatus.FAIL,
-            findings=[
-                (
-                    "OPERAUDIT is in effect"
-                    if active
-                    else "OPERAUDIT is NOT in effect — OPERATIONS user commands not audited"
-                )
-            ],
-            data=data,
-        )
+    flag_key = "operaudit"
+    on_finding = "OPERAUDIT is in effect"
+    off_finding = "OPERAUDIT is NOT in effect — OPERATIONS user commands not audited"
 
 
 class LogoptionsCheck(BaseCheck):
@@ -102,7 +87,7 @@ class LogoptionsCheck(BaseCheck):
         )
 
 
-class ProtectallCheck(BaseCheck):
+class ProtectallCheck(SetroptsFlagCheck):
     """EXT-009: PROTECTALL Status.
 
     PROTECTALL requires explicit RACF profiles for dataset access.
@@ -113,31 +98,12 @@ class ProtectallCheck(BaseCheck):
     control_name = "PROTECTALL Status"
     nist_function = "Protect"
     priority = "P2"
-
-    def execute(self, connection: BaseConnection) -> str:
-        return connection.execute_tso_command("SETROPTS LIST")
-
-    def parse(self, output: str) -> dict[str, Any]:
-        return parse_setropts_extended(output)
-
-    def evaluate(self, data: dict[str, Any]) -> CheckResult:
-        active = data.get("protectall", False)
-        return CheckResult(
-            control_id=self.control_id,
-            control_name=self.control_name,
-            status=CheckStatus.PASS if active else CheckStatus.FAIL,
-            findings=[
-                (
-                    "PROTECTALL is in effect"
-                    if active
-                    else "PROTECTALL is NOT in effect — datasets without profiles may be accessible"
-                )
-            ],
-            data=data,
-        )
+    flag_key = "protectall"
+    on_finding = "PROTECTALL is in effect"
+    off_finding = "PROTECTALL is NOT in effect — datasets without profiles may be accessible"
 
 
-class EraseCheck(BaseCheck):
+class EraseCheck(SetroptsFlagCheck):
     """EXT-010: ERASE-ON-SCRATCH Status.
 
     ERASE ensures deleted dataset content is overwritten, preventing recovery.
@@ -147,31 +113,13 @@ class EraseCheck(BaseCheck):
     control_name = "ERASE Status"
     nist_function = "Protect"
     priority = "P2"
-
-    def execute(self, connection: BaseConnection) -> str:
-        return connection.execute_tso_command("SETROPTS LIST")
-
-    def parse(self, output: str) -> dict[str, Any]:
-        return parse_setropts_extended(output)
-
-    def evaluate(self, data: dict[str, Any]) -> CheckResult:
-        active = data.get("erase", False)
-        return CheckResult(
-            control_id=self.control_id,
-            control_name=self.control_name,
-            status=CheckStatus.PASS if active else CheckStatus.PARTIAL,
-            findings=[
-                (
-                    "ERASE-ON-SCRATCH is in effect"
-                    if active
-                    else "ERASE-ON-SCRATCH is NOT in effect — deleted data may be recoverable"
-                )
-            ],
-            data=data,
-        )
+    flag_key = "erase"
+    on_finding = "ERASE-ON-SCRATCH is in effect"
+    off_finding = "ERASE-ON-SCRATCH is NOT in effect — deleted data may be recoverable"
+    off_status = CheckStatus.PARTIAL
 
 
-class VTAMSecurityCheck(BaseCheck):
+class VTAMSecurityCheck(RlistUaccCheck):
     """EXT-005: VTAM/Application Security.
 
     Checks that RACF APPL class profiles exist to control application access.
@@ -181,44 +129,11 @@ class VTAMSecurityCheck(BaseCheck):
     control_name = "VTAM Security"
     nist_function = "Protect"
     priority = "P2"
-
-    def execute(self, connection: BaseConnection) -> str:
-        return connection.execute_tso_command("RLIST APPL * ALL")
-
-    def parse(self, output: str) -> dict[str, Any]:
-        profiles = parse_rlist_class(output, "APPL")
-        return {"profiles": profiles, "count": len(profiles)}
-
-    def evaluate(self, data: dict[str, Any]) -> CheckResult:
-        profiles = data.get("profiles", [])
-        count = data.get("count", 0)
-        findings: list[str] = []
-
-        if count == 0:
-            return CheckResult(
-                control_id=self.control_id,
-                control_name=self.control_name,
-                status=CheckStatus.FAIL,
-                findings=["No APPL class profiles defined — application access not controlled"],
-                data=data,
-            )
-
-        findings.append(f"{count} APPL class profiles defined")
-        open_profiles = [p for p in profiles if p.get("uacc") not in ("NONE", None)]
-        if open_profiles:
-            names = ", ".join(p["name"] for p in open_profiles)
-            findings.append(f"Profiles with UACC != NONE: {names}")
-
-        return CheckResult(
-            control_id=self.control_id,
-            control_name=self.control_name,
-            status=CheckStatus.PASS if not open_profiles else CheckStatus.PARTIAL,
-            findings=findings,
-            data=data,
-        )
+    racf_class = "APPL"
+    missing_finding = "No APPL class profiles defined — application access not controlled"
 
 
-class ConsoleSecurityCheck(BaseCheck):
+class ConsoleSecurityCheck(RlistUaccCheck):
     """EXT-006: Console Security.
 
     Checks that RACF CONSOLE class profiles exist with UACC(NONE).
@@ -228,41 +143,8 @@ class ConsoleSecurityCheck(BaseCheck):
     control_name = "Console Security"
     nist_function = "Protect"
     priority = "P2"
-
-    def execute(self, connection: BaseConnection) -> str:
-        return connection.execute_tso_command("RLIST CONSOLE * ALL")
-
-    def parse(self, output: str) -> dict[str, Any]:
-        profiles = parse_rlist_class(output, "CONSOLE")
-        return {"profiles": profiles, "count": len(profiles)}
-
-    def evaluate(self, data: dict[str, Any]) -> CheckResult:
-        profiles = data.get("profiles", [])
-        count = data.get("count", 0)
-        findings: list[str] = []
-
-        if count == 0:
-            return CheckResult(
-                control_id=self.control_id,
-                control_name=self.control_name,
-                status=CheckStatus.FAIL,
-                findings=["No CONSOLE class profiles defined — console access not controlled"],
-                data=data,
-            )
-
-        findings.append(f"{count} CONSOLE class profiles defined")
-        open_profiles = [p for p in profiles if p.get("uacc") not in ("NONE", None)]
-        if open_profiles:
-            names = ", ".join(p["name"] for p in open_profiles)
-            findings.append(f"Profiles with UACC != NONE: {names}")
-
-        return CheckResult(
-            control_id=self.control_id,
-            control_name=self.control_name,
-            status=CheckStatus.PASS if not open_profiles else CheckStatus.PARTIAL,
-            findings=findings,
-            data=data,
-        )
+    racf_class = "CONSOLE"
+    missing_finding = "No CONSOLE class profiles defined — console access not controlled"
 
 
 # ---- EXT-001, EXT-002, EXT-003, EXT-004, EXT-011 ----
@@ -441,7 +323,7 @@ class USSListenersCheck(BaseCheck):
 
     def parse(self, output: str) -> dict[str, Any]:
         conns = parse_netstat_conn(output)
-        listeners = [c for c in conns if c["state"] == "Listen"]
+        listeners = [c for c in conns if c["state"].upper() == "LISTEN"]
         return {"listeners": listeners, "count": len(listeners)}
 
     def evaluate(self, data: dict[str, Any]) -> CheckResult:
@@ -639,15 +521,12 @@ class BackupStorageCheck(BaseCheck):
     def execute(self, connection: BaseConnection) -> str:
         sg_output = connection.execute_console_command("D SMS,SG(ALL)")
         da_output = connection.execute_console_command("D A,L")
-        return f"---SMS---\n{sg_output}\n---ACTIVITY---\n{da_output}"
+        return join_sections([("SMS", sg_output), ("ACTIVITY", da_output)])
 
     def parse(self, output: str) -> dict[str, Any]:
-        parts = output.split("---ACTIVITY---")
-        sms_section = parts[0].replace("---SMS---", "").strip()
-        da_section = parts[1].strip() if len(parts) > 1 else ""
-
-        storage_groups = parse_sms_storage_groups(sms_section)
-        address_spaces = parse_active_address_spaces(da_section)
+        sections = split_sections(output, ["SMS", "ACTIVITY"])
+        storage_groups = parse_sms_storage_groups(sections["SMS"])
+        address_spaces = parse_active_address_spaces(sections["ACTIVITY"])
 
         # Find COPY-type storage groups
         copy_groups = [g for g in storage_groups if g["type"] == "COPY"]
@@ -791,35 +670,17 @@ class BackupProcessCheck(BaseCheck):
 # ---- Health Checker aligned checks (EXT-023 to EXT-025) ----
 
 
-class BatchAllRACFCheck(BaseCheck):
+class BatchAllRACFCheck(SetroptsFlagCheck):
     """EXT-023: Batch Job RACF Enforcement (aligns with RACF_BATCHALLRACF)."""
 
     control_id = "EXT-023"
     control_name = "Batch Job RACF Enforcement"
     nist_function = "Protect"
     priority = "P2"
-
-    def execute(self, connection: BaseConnection) -> str:
-        return connection.execute_tso_command("SETROPTS LIST")
-
-    def parse(self, output: str) -> dict[str, Any]:
-        return parse_setropts_extended(output)
-
-    def evaluate(self, data: dict[str, Any]) -> CheckResult:
-        active = data.get("batchallracf", False)
-        return CheckResult(
-            control_id=self.control_id,
-            control_name=self.control_name,
-            status=CheckStatus.PASS if active else CheckStatus.FAIL,
-            findings=[
-                (
-                    "BATCHALLRACF in effect — all batch jobs require RACF authentication"
-                    if active
-                    else "BATCHALLRACF NOT in effect — batch jobs may bypass RACF authentication"
-                )
-            ],
-            data={"batchallracf": active},
-        )
+    flag_key = "batchallracf"
+    on_finding = "BATCHALLRACF in effect — all batch jobs require RACF authentication"
+    off_finding = "BATCHALLRACF NOT in effect — batch jobs may bypass RACF authentication"
+    data_keys = ("batchallracf",)
 
 
 class RACFDatabaseProtectionCheck(BaseCheck):
@@ -831,12 +692,17 @@ class RACFDatabaseProtectionCheck(BaseCheck):
     priority = "P1"
 
     def execute(self, connection: BaseConnection) -> str:
-        outputs = []
+        outputs: list[str] = []
+        errors: list[Exception] = []
         for dsn in ("SYS1.RACF", "SYS1.RACFB"):
             try:
                 outputs.append(connection.execute_tso_command(f"RLIST DATASET {dsn} ALL"))
-            except Exception:
-                pass
+            except (CommandNotSupportedError, PermissionError) as e:
+                # A single dataset profile not being listable is tolerable; only a
+                # total inability to query (every dsn unsupported) should Skip.
+                errors.append(e)
+        if not outputs and errors and all(isinstance(e, CommandNotSupportedError) for e in errors):
+            raise errors[0]
         return "\n".join(outputs)
 
     def parse(self, output: str) -> dict[str, Any]:

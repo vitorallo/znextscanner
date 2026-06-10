@@ -29,10 +29,11 @@ RACF_ERROR_PATTERNS = [
         re.compile(r"ICH409I\s+(.+?)\s+NOT FOUND", re.IGNORECASE),
         None,  # Not an error — resource simply doesn't exist
     ),
-    # ICH10006I - RACF not active for class
+    # ICH10006I - RACF class not active. This is a FINDING (the SETROPTS-based
+    # checks detect inactive classes), not a permission problem — do NOT raise.
     (
         re.compile(r"ICH10006I\s+(.+?)\s+NOT ACTIVE", re.IGNORECASE),
-        "RACF class {match} is not active. Activate with: SETROPTS CLASSACT({match})",
+        None,  # informational — let the check evaluate the empty result
     ),
     # IKJ56702A - TSO command not authorized
     (

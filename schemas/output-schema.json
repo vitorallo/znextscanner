@@ -38,6 +38,10 @@
         "scanner_version": {
           "type": "string",
           "description": "MRRA Scanner version"
+        },
+        "zos_version": {
+          "type": ["string", "null"],
+          "description": "Detected target z/OS version (from /zosmf/info), if available"
         }
       }
     },

@@ -1,5 +1,6 @@
 """Scanner orchestrator — runs all checks and collects results."""
 
+import functools
 import time
 import uuid
 from datetime import datetime, timezone
@@ -97,12 +98,15 @@ def get_check_by_id(control_id: str) -> type[BaseCheck] | None:
     return None
 
 
+@functools.cache
 def _build_mythos_registry() -> list[type[BaseCheck]]:
     """Mythos profile registry: existing checks bound by the Mythos catalog.
 
     Annotates each bound check class so it advertises the ``mythos`` framework and
-    its Mythos dimension while remaining a valid ``mrra`` check. New scriptable
-    Mythos checks (R01/R02/V01/V02/X01) are added by later phases.
+    its Mythos dimension while remaining a valid ``mrra`` check. The class-level
+    annotation is intentional and one-way (a class is either Mythos-bound or not),
+    so this is memoized — it runs exactly once per process. Callers receive a
+    defensive copy via ``PROFILES`` so the cached list is never mutated.
     """
     from znextscan.frameworks.mythos import MYTHOS_CONTROLS, mythos_scanner_check_ids
 
@@ -126,7 +130,7 @@ def _build_mythos_registry() -> list[type[BaseCheck]]:
 # Profile -> ordered check registry. Default profile is ``mrra`` (unchanged behavior).
 PROFILES: dict[str, Callable[[], list[type[BaseCheck]]]] = {
     "mrra": lambda: list(CHECK_REGISTRY),
-    "mythos": _build_mythos_registry,
+    "mythos": lambda: list(_build_mythos_registry()),
 }
 
 
@@ -146,6 +150,7 @@ class ScanResult:
         self.end_time: datetime | None = None
         self.config = config
         self.results: list[CheckResult] = []
+        self.zos_version: str | None = None
 
     def add_result(self, result: CheckResult) -> None:
         self.results.append(result)
@@ -182,6 +187,7 @@ class ScanResult:
                 "duration_seconds": duration,
                 "connection_method": self.config.connection.method.value,
                 "scanner_version": "0.1.0",
+                "zos_version": self.zos_version,
             },
             "controls": [r.to_dict() for r in self.results],
             "summary": self.summary,
@@ -203,6 +209,18 @@ def run_scan(
                   called after each check completes. Use for CLI progress display.
     """
     scan = ScanResult(config)
+
+    # Best-effort target version (annotation only — never used to pre-filter checks).
+    try:
+        scan.zos_version = (connection.system_info() or {}).get("zos_version")
+    except Exception:
+        scan.zos_version = None
+
+    # Memoize identical read-only commands for the duration of this scan (e.g. the
+    # dozen checks that each issue SETROPTS LIST hit z/OS once).
+    from znextscan.connections.caching import CachingConnection
+
+    connection = CachingConnection(connection)
 
     # Install the recon context so MYT-R02 can consult the authorization gate.
     from znextscan.recon import ReconContext, set_context
@@ -230,13 +248,16 @@ def run_scan(
             progress(i, total, check.control_id, check.control_name, "running")
 
         result = check.run(connection)
+        # Annotate skips with the target level so "requires z/OSMF V2.3+" reads in
+        # context (e.g. "... target is z/OS 01.13.00").
+        if result.status is CheckStatus.SKIPPED and scan.zos_version:
+            result.findings.append(f"Target z/OS: {scan.zos_version}")
         scan.add_result(result)
 
         # Brief pause between checks on live connections to avoid overwhelming
-        # slow z/OS systems (prevents EZZ9674E TCPIP SYSPLEX timeouts on Hercules)
-        from znextscan.connections.mock import MockConnection
-
-        if i < total and not isinstance(connection, MockConnection):
+        # slow z/OS systems (prevents EZZ9674E TCPIP SYSPLEX timeouts on Hercules).
+        # In-memory connections (Mock, and wrappers over it) are not throttled.
+        if i < total and getattr(connection, "is_throttled", False):
             time.sleep(0.5)
 
         log.debug(
